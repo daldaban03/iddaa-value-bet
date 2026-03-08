@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Geçici test dosyaları
+tmp_test*.py
+
+# IDE
+.vscode/
+.idea/
+
+# Ortam değişkenleri
+.env
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Cache dosyaları
+*.json
+!requirements.txt
