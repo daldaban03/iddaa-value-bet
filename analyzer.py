@@ -189,9 +189,10 @@ class ValueAnalyzer:
             f"[Adim 2 - Yapay Zeka (Poisson + XGBoost/MLP + Elo)] '{fixture_row['Home_Team']}' (Elo: {home_elo}, Form: {home_form}/1.0, Ivme: {home_mom}) ve "
             f"'{fixture_row['Away_Team']}' (Elo: {away_elo}, Form: {away_form}/1.0, Ivme: {away_mom}) verilerine iliskin oyuncu eksikleri su sekilde: \n"
             f"> {inj_str}\n"
-            f"> Yapay Zeka Oran Cezasi: {pen_str}\n"
-            f"Bu veriler dogrultusunda '{prediction_type}' sonucunun olasiligi %{prob*100:.1f} olarak hesaplandi.\n\n"
-            f"[Adim 3 - Value (Deger) Testi] Iddaa'nin actigi {odds} orani, yapay zekanin bu dinamik guncel verilerden buldugu %{prob*100:.1f} parametik ihtimaliyle karsilastirildi.\n\n"
+            f"> Yapay Zeka Oran Cezasi: {pen_str}\n\n"
+            f"Transfermarkt verilerine gore eksik oyuncularin guncel piyasa degerleri paha olarak takim kadrosuna oranlanmis, tahribat yuzdesi buna gore dinamik dusurulmustur.\n"
+            f"Tum bu veriler dogrultusunda '{prediction_type}' sonucunun olasiligi %{prob*100:.1f} olarak hesaplandi.\n\n"
+            f"[Adim 3 - Value (Deger) Testi] Iddaa'nin actigi {odds} orani, yapay zekanin bu dinamik guncel verilerden buldugu %{prob*100:.1f} gercek ihtimaliyle karsilastirildi.\n\n"
             f"[Adim 4 - Kelly Kriteri] Sermaye: 100.000 TL | Onerilen bahis: {kelly_bet:,.0f} TL (Kelly: %{kelly_f*100:.2f})\n\n"
             f"[Sonuc] (%{prob*100:.1f} x {odds}) - 1 = Edge (Avantaj) %{ev*100:.1f} --> Matematiksel olarak karli bahis!"
         )
