@@ -3,53 +3,310 @@ import requests
 import io
 import unicodedata
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-API_FOOTBALL_KEY = "ace5b148be95024d291c774edcd33e10"
-API_FOOTBALL_URL = "https://v3.football.api-sports.io"
 
 class HistoricalDataFetcher:
+    """
+    Data fetcher using FREE data sources only:
+    - ClubElo API → Elo ratings
+    - football-data.co.uk → match results, form, goals, H2H
+    - Transfermarkt → injuries
+    """
+
+    LEAGUE_CODES = {
+        'T1': 'Süper Lig', 'E0': 'Premier League', 'E1': 'Championship',
+        'SP1': 'La Liga', 'SP2': 'La Liga 2',
+        'I1': 'Serie A', 'I2': 'Serie B',
+        'D1': 'Bundesliga', 'D2': '2. Bundesliga',
+        'F1': 'Ligue 1', 'F2': 'Ligue 2',
+        'N1': 'Eredivisie', 'B1': 'Jupiler League',
+        'P1': 'Liga Portugal', 'G1': 'Super League Greece',
+        'SC0': 'Scottish Premiership',
+    }
+
+    TRAINING_LEAGUES = ['E0', 'SP1', 'I1', 'D1', 'F1']
+    TRAINING_SEASONS = ['2122', '2223', '2324', '2425']
+
     def __init__(self):
         self.session = requests.Session()
-        self.api_headers = {'x-apisports-key': API_FOOTBALL_KEY}
-        # Cache team IDs and stats to avoid duplicate API calls (limited to 100/day)
-        self._team_id_cache = {}
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+
         self._stats_cache = {}
-        self._team_league_season_cache = {}
-        
-        # Transfermarkt caching
+        self._league_data = {}          # "code_season" -> DataFrame
+        self._team_league_map = {}      # norm_name -> (code, canonical)
+        self._league_averages = {}
+        self._leagues_loaded = False
+
+        # Transfermarkt
         self._tm_injury_links = {}
         self._tm_links_fetched = False
 
-    def _get_team_id(self, team_name):
-        """Search API-Football for a team by name, return its numeric ID."""
-        if team_name in self._team_id_cache:
-            return self._team_id_cache[team_name]
+        # Current season
+        now = datetime.now()
+        if now.month >= 7:
+            self._current_season = f"{str(now.year)[2:]}{str(now.year + 1)[2:]}"
+        else:
+            self._current_season = f"{str(now.year - 1)[2:]}{str(now.year)[2:]}"
+
+    # ═══════════════════════════════════════════════
+    # Name normalization
+    # ═══════════════════════════════════════════════
+
+    def _norm_name(self, s):
+        s = unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('utf-8')
+        s = s.lower().strip()
+        for suf in [' sk', ' jk', ' fk', ' a.s.', ' fc', ' sc', ' cf', ' afc']:
+            s = s.replace(suf, '')
+        return s.replace(' ', '')
+
+    def _normalize_team_name_elo(self, name):
+        name = str(name).strip()
+        for pre in ['RC ', 'FC ', 'AS ', 'AC ', 'US ', 'SSC ', 'AFC ', 'FK ', 'SC ']:
+            if name.startswith(pre):
+                name = name[len(pre):]
+        for suf in [' FC', ' FK', ' A.S.', ' SC']:
+            if name.endswith(suf):
+                name = name[:-len(suf)]
+        mappings = {
+            'Bilbao': 'Athletic', 'Paris St Germain': 'PSG',
+            'Bayern Munich': 'Bayern', 'Real Betis': 'Betis',
+            'Real Sociedad': 'Sociedad', 'AS Roma': 'Roma',
+            'Roma': 'Roma', 'Inter': 'Internazionale',
+        }
+        return mappings.get(name, name).replace(" ", "")
+
+    # ═══════════════════════════════════════════════
+    # ClubElo API (FREE)
+    # ═══════════════════════════════════════════════
+
+    def _get_elo(self, team_name):
         try:
-            r = self.session.get(
-                f"{API_FOOTBALL_URL}/teams",
-                headers=self.api_headers,
-                params={"name": team_name},
-                timeout=7
-            )
-            if r.status_code == 200:
-                teams = r.json().get('response', [])
-                if teams:
-                    team_id = teams[0]['team']['id']
-                    self._team_id_cache[team_name] = team_id
-                    return team_id
-            else:
-                print(f"API Error ({r.status_code}) fetching team ID for {team_name}: {r.text}")
-        except Exception as e:
-            print(f"Exception fetching team ID for {team_name}: {e}")
+            formatted = self._normalize_team_name_elo(team_name)
+            r = self.session.get(f"http://api.clubelo.com/{formatted}", timeout=10)
+            if r.status_code == 200 and r.text.strip():
+                df = pd.read_csv(io.StringIO(r.text))
+                if not df.empty and 'Elo' in df.columns:
+                    return float(df.iloc[-1]['Elo'])
+        except Exception:
+            pass
         return None
+
+    # ═══════════════════════════════════════════════
+    # football-data.co.uk CSV (FREE)
+    # ═══════════════════════════════════════════════
+
+    def _fetch_league_csv(self, league_code, season=None):
+        if season is None:
+            season = self._current_season
+
+        cache_key = f"{league_code}_{season}"
+        if cache_key in self._league_data:
+            return self._league_data[cache_key]
+
+        target_url = f"https://www.football-data.co.uk/mmz4281/{season}/{league_code}.csv"
+        
+        # Denenecek URL rotaları (Türkiye'deki erişim engellerini veya timeout'ları aşmak için ayna siteler)
+        urls_to_try = [
+            f"https://corsproxy.io/?url={target_url}",
+            f"https://api.allorigins.win/raw?url={target_url}",
+            target_url
+        ]
+        
+        for url in urls_to_try:
+            try:
+                r = self.session.get(url, timeout=15)
+                if r.status_code == 200 and r.text.strip():
+                    df = pd.read_csv(io.StringIO(r.text), on_bad_lines='skip')
+                    if 'HomeTeam' in df.columns and 'AwayTeam' in df.columns:
+                        if 'Date' in df.columns:
+                            df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+                            df = df.sort_values('Date').reset_index(drop=True)
+
+                        self._league_data[cache_key] = df
+                        for team in set(df['HomeTeam'].dropna()) | set(df['AwayTeam'].dropna()):
+                            norm = self._norm_name(str(team))
+                            self._team_league_map[norm] = (league_code, str(team))
+                        return df
+            except Exception as e:
+                print(f"  CSV fetch failed ({league_code}/{season}) via {url}: {e}")
+        
+        return None
+
+    def _ensure_leagues_loaded(self):
+        if self._leagues_loaded:
+            return
+        print("Lig verileri football-data.co.uk'dan çekiliyor...")
+        for code in self.LEAGUE_CODES:
+            df = self._fetch_league_csv(code)
+            if df is not None:
+                print(f"  ✓ {self.LEAGUE_CODES[code]}: {len(df)} maç")
+        self._leagues_loaded = True
+
+    def _find_team_in_leagues(self, team_name):
+        """Returns (league_code, canonical_name, league_df) or (None, None, None)."""
+        self._ensure_leagues_loaded()
+
+        norm = self._norm_name(team_name)
+
+        if norm in self._team_league_map:
+            code, canonical = self._team_league_map[norm]
+            df = self._league_data.get(f"{code}_{self._current_season}")
+            if df is not None:
+                return code, canonical, df
+
+        best_match, best_score = None, 0
+        for cached_norm, (code, canonical) in self._team_league_map.items():
+            score = 0
+            if norm == cached_norm:
+                score = 100
+            elif norm in cached_norm:
+                score = len(norm) / max(len(cached_norm), 1) * 80
+            elif cached_norm in norm:
+                score = len(cached_norm) / max(len(norm), 1) * 80
+            if score > best_score:
+                best_score = score
+                best_match = (code, canonical)
+
+        if best_match and best_score > 40:
+            self._team_league_map[norm] = best_match
+            code, canonical = best_match
+            df = self._league_data.get(f"{code}_{self._current_season}")
+            return code, canonical, df
+
+        return None, None, None
+
+    def _get_league_averages(self, league_code):
+        if league_code in self._league_averages:
+            return self._league_averages[league_code]
+
+        df = self._league_data.get(f"{league_code}_{self._current_season}")
+        if df is not None and 'FTHG' in df.columns:
+            avg_home = float(df['FTHG'].dropna().mean())
+            avg_away = float(df['FTAG'].dropna().mean())
+        else:
+            avg_home, avg_away = 1.5, 1.15
+
+        result = {'avg_home_goals': round(avg_home, 3), 'avg_away_goals': round(avg_away, 3)}
+        self._league_averages[league_code] = result
+        return result
+
+    def _compute_team_csv_stats(self, canonical_name, league_df):
+        """Compute home/away goal averages, form, momentum from CSV."""
+        home_m = league_df[league_df['HomeTeam'] == canonical_name]
+        away_m = league_df[league_df['AwayTeam'] == canonical_name]
+
+        h_scored = float(home_m['FTHG'].mean()) if (not home_m.empty and 'FTHG' in home_m.columns) else 1.4
+        h_conced = float(home_m['FTAG'].mean()) if (not home_m.empty and 'FTAG' in home_m.columns) else 1.1
+        a_scored = float(away_m['FTAG'].mean()) if (not away_m.empty and 'FTAG' in away_m.columns) else 1.0
+        a_conced = float(away_m['FTHG'].mean()) if (not away_m.empty and 'FTHG' in away_m.columns) else 1.5
+
+        # Form: combine home+away, sort by date
+        results = []
+        for _, row in home_m.iterrows():
+            ftr = row.get('FTR', '')
+            d = row.get('Date', pd.NaT)
+            res_val = 1 if ftr == 'H' else (0 if ftr == 'D' else -1 if ftr == 'A' else None)
+            if res_val is not None:
+                results.append((d, res_val))
+
+        for _, row in away_m.iterrows():
+            ftr = row.get('FTR', '')
+            d = row.get('Date', pd.NaT)
+            res_val = 1 if ftr == 'A' else (0 if ftr == 'D' else -1 if ftr == 'H' else None)
+            if res_val is not None:
+                results.append((d, res_val))
+
+        results.sort(key=lambda x: x[0] if pd.notna(x[0]) else pd.Timestamp.min)
+        result_vals = [r[1] for r in results]
+
+        # Form (last 7)
+        last7 = result_vals[-7:] if len(result_vals) >= 7 else result_vals
+        form_score = 0.5
+        if last7:
+            form_score = (sum(1 for r in last7 if r == 1) + sum(0.4 for r in last7 if r == 0)) / len(last7)
+
+        # Momentum (last 3)
+        momentum = 0.0
+        if len(result_vals) >= 3:
+            last3 = result_vals[-3:]
+            if all(r == 1 for r in last3):
+                momentum = 0.2
+            elif all(r == -1 for r in last3):
+                momentum = -0.2
+
+        return {
+            'home_goals_scored': round(h_scored, 3),
+            'home_goals_conceded': round(h_conced, 3),
+            'away_goals_scored': round(a_scored, 3),
+            'away_goals_conceded': round(a_conced, 3),
+            'avg_goals_scored': round((h_scored + a_scored) / 2, 3),
+            'avg_goals_conceded': round((h_conced + a_conced) / 2, 3),
+            'form': round(form_score, 2),
+            'momentum': round(momentum, 2),
+        }
+
+    # ═══════════════════════════════════════════════
+    # H2H from football-data.co.uk
+    # ═══════════════════════════════════════════════
+
+    def get_h2h(self, home_team, away_team):
+        """H2H record from CSV data (current + past 3 seasons)."""
+        _, home_c, _ = self._find_team_in_leagues(home_team)
+        _, away_c, _ = self._find_team_in_leagues(away_team)
+        if not home_c or not away_c:
+            return {'total': 0}
+
+        code, _, _ = self._find_team_in_leagues(home_team)
+        h2h_results = []
+
+        seasons_to_check = [self._current_season] + ['2324', '2223', '2122']
+        for season in seasons_to_check:
+            ck = f"{code}_{season}"
+            if ck not in self._league_data:
+                self._fetch_league_csv(code, season)
+            df = self._league_data.get(ck)
+            if df is None:
+                continue
+
+            mask1 = (df['HomeTeam'] == home_c) & (df['AwayTeam'] == away_c)
+            mask2 = (df['HomeTeam'] == away_c) & (df['AwayTeam'] == home_c)
+            for _, row in df[mask1 | mask2].iterrows():
+                ftr = row.get('FTR', '')
+                ht = row.get('HomeTeam', '')
+                if ht == home_c:
+                    h2h_results.append(1 if ftr == 'H' else (0 if ftr == 'D' else -1))
+                else:
+                    h2h_results.append(1 if ftr == 'A' else (0 if ftr == 'D' else -1))
+
+        total = len(h2h_results)
+        if total == 0:
+            return {'total': 0}
+
+        hw = sum(1 for r in h2h_results if r == 1)
+        dr = sum(1 for r in h2h_results if r == 0)
+        aw = sum(1 for r in h2h_results if r == -1)
+
+        return {
+            'total': total,
+            'home_wins': hw,
+            'draws': dr,
+            'away_wins': aw,
+            'home_dominance': round((hw - aw) / total, 2),
+        }
+
+    # ═══════════════════════════════════════════════
+    # Transfermarkt injuries (keep existing)
+    # ═══════════════════════════════════════════════
+
     def _fetch_tm_links(self):
-        """Fetches the Transfermarkt Super Lig table to cache injury links for all teams."""
         if self._tm_links_fetched:
             return
-            
         url = "https://www.transfermarkt.com.tr/super-lig/startseite/wettbewerb/TR1"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
         }
         try:
@@ -71,34 +328,26 @@ class HistoricalDataFetcher:
                                 self._tm_injury_links[team_name] = inj_url
             self._tm_links_fetched = True
         except Exception as e:
-            print(f"Failed to fetch TM links: {e}")
-
-    def _norm_name(self, s):
-        """Normalize a team name for comparison: strip diacritics, lowercase, remove suffixes."""
-        s = unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('utf-8')
-        return s.lower().replace(' sk', '').replace(' jk', '').replace(' fk', '').replace(' a.s.', '').replace(' fc', '').replace(' ', '')
+            print(f"TM links fetch failed: {e}")
 
     def _tm_global_search(self, team_name):
-        """Search Transfermarkt globally for any team and return its injuries page URL."""
         if team_name in self._tm_injury_links:
             return self._tm_injury_links[team_name]
-        
+
         url = "https://www.transfermarkt.com.tr/schnellsuche/ergebnis/schnellsuche"
         params = {"query": team_name, "x": 0, "y": 0}
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept-Language": "tr-TR,tr;q=0.9",
         }
-        
         try:
             r = self.session.get(url, params=params, headers=headers, timeout=10)
             if r.status_code != 200:
                 return None
-            
+
             soup = BeautifulSoup(r.text, 'html.parser')
             candidates = []
-            tables = soup.find_all('table', class_='items')
-            for table in tables:
+            for table in soup.find_all('table', class_='items'):
                 for row in table.find_all('tr'):
                     link = row.find('a', href=True)
                     if link and '/verein/' in link.get('href', ''):
@@ -113,42 +362,33 @@ class HistoricalDataFetcher:
                             candidates.append((display, inj_url))
                         except:
                             pass
-            
+
             if not candidates:
                 return None
-            
-            # Score candidates by similarity
+
             search_n = self._norm_name(team_name)
-            best_url = None
-            best_score = -1
-            
+            best_url, best_score = None, -1
+
             for display, inj_url in candidates:
                 dn = self._norm_name(display)
                 if dn == search_n:
                     self._tm_injury_links[team_name] = inj_url
                     return inj_url
-                
+
                 score = 0
                 if search_n in dn:
                     score = len(search_n) / max(len(dn), 1) * 100
                 elif dn in search_n:
                     score = len(dn) / max(len(search_n), 1) * 100
-                
-                # Bonus for first-word match
-                sw = search_n.split() if ' ' in team_name.lower() else [search_n]
-                dw = dn.split() if ' ' in display.lower() else [dn]
-                if sw and dw and sw[0] == dw[0]:
-                    score += 50
-                
+
                 if score > best_score:
                     best_score = score
                     best_url = inj_url
-            
+
             if best_url and best_score > 20:
                 self._tm_injury_links[team_name] = best_url
                 return best_url
-            
-            # Fallback: first result
+
             self._tm_injury_links[team_name] = candidates[0][1]
             return candidates[0][1]
         except Exception as e:
@@ -156,30 +396,24 @@ class HistoricalDataFetcher:
             return None
 
     def get_transfermarkt_injuries(self, team_name):
-        """Web scrapes injuries from Transfermarkt. First checks Super Lig cache, then global search."""
         self._fetch_tm_links()
-        
-        # Step 1: Try Super Lig cache
+
         best_match_url = None
         team_n = self._norm_name(team_name)
         for tm_name, url in self._tm_injury_links.items():
-            tm_n = self._norm_name(tm_name)
-            if tm_n in team_n or team_n in tm_n:
+            if self._norm_name(tm_name) in team_n or team_n in self._norm_name(tm_name):
                 best_match_url = url
                 break
-        
-        # Step 2: Global search fallback
+
         if not best_match_url:
             best_match_url = self._tm_global_search(team_name)
-        
+
         if not best_match_url:
-            print(f"TM: Could not find team '{team_name}'")
             return []
 
-        # Step 3: Fetch the injuries page
         injured_players = []
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept-Language": "tr-TR,tr;q=0.9",
         }
         try:
@@ -195,248 +429,172 @@ class HistoricalDataFetcher:
                             if p_name and p_name not in injured_players:
                                 injured_players.append(p_name)
         except Exception as e:
-            print(f"Exception fetching TM injuries for {team_name}: {e}")
-            
+            print(f"TM injuries error for {team_name}: {e}")
+
         return injured_players
 
-    def _get_team_current_league_and_season(self, team_id):
-        """Finds the team's actual current domestic league ID and the current season year."""
-        if team_id is None:
-            return None, None
-        
-        if team_id in self._team_league_season_cache:
-            return self._team_league_season_cache[team_id]
+    # ═══════════════════════════════════════════════
+    # Training Data for ML Model
+    # ═══════════════════════════════════════════════
 
-        try:
-            r = self.session.get(
-                f"{API_FOOTBALL_URL}/leagues",
-                headers=self.api_headers,
-                params={"team": team_id, "type": "League", "current": "true"},
-                timeout=7
-            )
-            if r.status_code == 200:
-                leagues = r.json().get('response', [])
-                if leagues:
-                    league = leagues[0]
-                    league_id = league['league']['id']
-                    
-                    season_year = None
-                    for s in league.get('seasons', []):
-                        if s.get('current'):
-                            season_year = s.get('year')
-                            break
-                    
-                    # Fallback to the last listed season if none explicitly marked current
-                    if not season_year and league.get('seasons'):
-                        season_year = league['seasons'][-1]['year']
-                    
-                    self._team_league_season_cache[team_id] = (league_id, str(season_year) if season_year else None)
-                    return league_id, self._team_league_season_cache[team_id][1]
-            else:
-                print(f"API Error ({r.status_code}) fetching leagues for {team_id}.")
-        except Exception as e:
-            print(f"Exception fetching leagues for {team_id}: {e}")
-            
-        return None, None
+    def get_training_data(self):
+        """
+        Build training dataset from football-data.co.uk historical CSVs.
+        Uses rolling stats to prevent data leakage.
+        Returns (X, y) numpy-compatible lists.
+        """
+        import numpy as np
+        print("Eğitim verisi oluşturuluyor (5 lig × 4 sezon)...")
+        X, y = [], []
 
-    def _get_team_api_stats(self, team_id, season, league_id=None):
-        """
-        Returns real-time form, avg goals from API-Football for a specific season.
-        """
-        if team_id is None or not season:
-            return None
-        
-        leagues_to_try = [league_id, None] if league_id else [None]
-        for lid in leagues_to_try:
-            try:
-                params = {"team": team_id, "season": season}
-                if lid:
-                    params["league"] = lid
-                r = self.session.get(
-                    f"{API_FOOTBALL_URL}/teams/statistics",
-                    headers=self.api_headers,
-                    params=params,
-                    timeout=7
-                )
-                if r.status_code == 200:
-                    json_data = r.json()
-                    
-                    # Detect if API Plan restricts this season
-                    errors = json_data.get('errors', {})
-                    if isinstance(errors, dict) and 'plan' in errors:
-                        return "PLAN_ERROR"
-                        
-                    stats = json_data.get('response', {})
-                    if stats:
-                        return stats
-                else:
-                    print(f"API Error ({r.status_code}) fetching stats for {team_id} (league {lid}): {r.text}")
-            except Exception as e:
-                print(f"Exception fetching api stats for {team_id}: {e}")
-        return None
+        for league in self.TRAINING_LEAGUES:
+            for season in self.TRAINING_SEASONS:
+                df = self._fetch_league_csv(league, season)
+                if df is None or df.empty:
+                    continue
 
+                # Rolling stats per team
+                t_home_goals = {}
+                t_home_conc = {}
+                t_away_goals = {}
+                t_away_conc = {}
+                t_results = {}
 
-    def _normalize_team_name(self, name):
-        """
-        Normalizes team names to improve match rates with ClubElo.
-        Removes common prefixes/suffixes that iddaa uses but ClubElo doesn't.
-        """
-        name = str(name).strip()
-        # Common prefixes to remove
-        prefixes = ['RC ', 'FC ', 'AS ', 'AC ', 'US ', 'SSC ', 'AFC ', 'FK ', 'SC ']
-        for prefix in prefixes:
-            if name.startswith(prefix):
-                name = name[len(prefix):]
-        # Common suffixes
-        suffixes = [' FC', ' FK', ' A.S.', ' SC']
-        for suffix in suffixes:
-            if name.endswith(suffix):
-                name = name[:-len(suffix)]
-        # Special manual mappings for iddaa -> ClubElo
-        mappings = {
-            'Bilbao': 'Athletic',
-            'Paris St Germain': 'PSG',
-            'Bayern Munich': 'Bayern',
-            'Real Betis': 'Betis',
-            'Real Sociedad': 'Sociedad',
-            'AS Roma': 'Roma',
-            'Roma': 'Roma',
-            'Inter': 'Internazionale',
-            'Juventus': 'Juventus'
-        }
-        name = mappings.get(name, name)
-        # ClubElo expects spaces removed
-        return name.replace(" ", "")
+                for _, row in df.iterrows():
+                    home = row.get('HomeTeam')
+                    away = row.get('AwayTeam')
+                    fthg = row.get('FTHG')
+                    ftag = row.get('FTAG')
+                    ftr = row.get('FTR')
+
+                    if pd.isna(home) or pd.isna(away) or pd.isna(fthg) or pd.isna(ftag) or pd.isna(ftr):
+                        continue
+
+                    fthg, ftag = float(fthg), float(ftag)
+
+                    # Current stats (BEFORE this match)
+                    h_hg = t_home_goals.get(home, [])
+                    h_hc = t_home_conc.get(home, [])
+                    a_ag = t_away_goals.get(away, [])
+                    a_ac = t_away_conc.get(away, [])
+                    h_res = t_results.get(home, [])
+                    a_res = t_results.get(away, [])
+
+                    # Need minimum 3 matches per team
+                    if len(h_res) >= 3 and len(a_res) >= 3:
+                        h_scored_avg = float(np.mean(h_hg[-10:])) if h_hg else 1.4
+                        h_conced_avg = float(np.mean(h_hc[-10:])) if h_hc else 1.1
+                        a_scored_avg = float(np.mean(a_ag[-10:])) if a_ag else 1.0
+                        a_conced_avg = float(np.mean(a_ac[-10:])) if a_ac else 1.5
+
+                        h_form = self._form_score(h_res)
+                        a_form = self._form_score(a_res)
+                        h_mom = self._momentum(h_res)
+                        a_mom = self._momentum(a_res)
+
+                        X.append([
+                            h_scored_avg, h_conced_avg,
+                            a_scored_avg, a_conced_avg,
+                            h_scored_avg - a_scored_avg,
+                            h_form, a_form,
+                            h_mom, a_mom
+                        ])
+
+                        label = 1 if ftr == 'H' else (0 if ftr == 'D' else 2)
+                        y.append(label)
+
+                    # Update rolling stats
+                    t_home_goals.setdefault(home, []).append(fthg)
+                    t_home_goals[home] = t_home_goals[home][-10:]
+                    t_home_conc.setdefault(home, []).append(ftag)
+                    t_home_conc[home] = t_home_conc[home][-10:]
+                    t_away_goals.setdefault(away, []).append(ftag)
+                    t_away_goals[away] = t_away_goals[away][-10:]
+                    t_away_conc.setdefault(away, []).append(fthg)
+                    t_away_conc[away] = t_away_conc[away][-10:]
+
+                    h_r = 1 if fthg > ftag else (0 if fthg == ftag else -1)
+                    a_r = 1 if ftag > fthg else (0 if fthg == ftag else -1)
+                    t_results.setdefault(home, []).append(h_r)
+                    t_results[home] = t_results[home][-10:]
+                    t_results.setdefault(away, []).append(a_r)
+                    t_results[away] = t_results[away][-10:]
+
+                print(f"  ✓ {self.LEAGUE_CODES.get(league, league)} {season}: toplam {len(X)} örnek")
+
+        print(f"Eğitim verisi hazır: {len(X)} maç, 9 özellik")
+        return X, y
+
+    @staticmethod
+    def _form_score(result_list):
+        if not result_list:
+            return 0.5
+        last7 = result_list[-7:]
+        return (sum(1 for r in last7 if r == 1) + sum(0.4 for r in last7 if r == 0)) / len(last7)
+
+    @staticmethod
+    def _momentum(result_list):
+        if len(result_list) < 3:
+            return 0.0
+        last3 = result_list[-3:]
+        if all(r == 1 for r in last3):
+            return 0.2
+        if all(r == -1 for r in last3):
+            return -0.2
+        return 0.0
+
+    # ═══════════════════════════════════════════════
+    # Main Interface
+    # ═══════════════════════════════════════════════
 
     def get_team_stats(self, team_name):
-        """
-        Retrieves enriched team stats from:
-        1. API-Football (form, goals, injuries) — PRIMARY
-        2. ClubElo API (Elo rating for baseline) — FALLBACK
-        
-        Returns a dictionary with all features the predictor needs.
-        """
         if team_name in self._stats_cache:
             return self._stats_cache[team_name]
 
-        # ──────────────────────────────────────────
-        # 1. ClubElo fallback baseline
-        # ──────────────────────────────────────────
-        elo_score = None
-        try:
-            formatted_name = self._normalize_team_name(team_name)
-            url = f"http://api.clubelo.com/{formatted_name}"
-            # ClubElo can sometimes be slow, increasing timeout to 10s
-            r = self.session.get(url, timeout=10)
-            if r.status_code == 200 and r.text.strip():
-                df = pd.read_csv(io.StringIO(r.text))
-                if not df.empty and 'Elo' in df.columns:
-                    elo_score = float(df.iloc[-1]['Elo'])
-        except Exception:
-            pass
+        # 1. ClubElo
+        elo_score = self._get_elo(team_name)
 
-        # Elo → baseline goals (if available)
-        if elo_score is not None:
-            avg_scored_base = max(0.5, 1.0 + (elo_score - 1300) / 300.0)
-            avg_conceded_base = max(0.5, 2.0 - (elo_score - 1300) / 400.0)
+        # 2. football-data.co.uk stats
+        code, canonical, league_df = self._find_team_in_leagues(team_name)
+
+        if code and canonical and league_df is not None:
+            csv_stats = self._compute_team_csv_stats(canonical, league_df)
+            league_avg = self._get_league_averages(code)
         else:
-            avg_scored_base = 1.5
-            avg_conceded_base = 1.5
-
-        # ──────────────────────────────────────────
-        # 2. API-Football enrichment
-        # ──────────────────────────────────────────
-        team_id = self._get_team_id(team_name)
-        
-        # Determine actual current league and season dynamically
-        league_id, team_season = self._get_team_current_league_and_season(team_id)
-        
-        # Fallback if season could not be determined
-        if not team_season:
-            from datetime import datetime
-            now = datetime.now()
-            team_season = str(now.year - 1) if now.month < 7 else str(now.year)
-            
-        # Real goals from API-Football stats
-        avg_scored = avg_scored_base
-        avg_conceded = avg_conceded_base
-        form_score = 0.5       # 0.0 (terrible) to 1.0 (perfect)
-        injury_count = 0
-        momentum = 0.0         # positive = winning streak, negative = losing streak
-
-        api_stats = None
-        # Handle free tier plan limits automatically by stepping back season years if needed
-        for _ in range(3):
-            api_stats = self._get_team_api_stats(team_id, season=team_season, league_id=league_id)
-            if api_stats == "PLAN_ERROR":
-                team_season = str(int(team_season) - 1)
-                api_stats = None
+            # Fallback: Elo-based estimation
+            if elo_score is not None:
+                avg_s = max(0.5, 1.0 + (elo_score - 1300) / 300.0)
+                avg_c = max(0.5, 2.0 - (elo_score - 1300) / 400.0)
             else:
-                break
+                avg_s, avg_c = 1.5, 1.5
 
-        if api_stats:
-            goals_for = api_stats.get('goals', {}).get('for', {}).get('average', {})
-            goals_against = api_stats.get('goals', {}).get('against', {}).get('average', {})
-            
-            # 'total' may be null/None; fall back to average of home + away
-            gf_total = goals_for.get('total')
-            ga_total = goals_against.get('total')
-            
-            # Safe calculation for average goals scored
-            if gf_total is not None and str(gf_total).strip() != "":
-                avg_scored = float(gf_total)
-            else:
-                gf_home = goals_for.get('home')
-                gf_away = goals_for.get('away')
-                if gf_home is not None and gf_away is not None and str(gf_home).strip() != "" and str(gf_away).strip() != "":
-                    avg_scored = (float(gf_home) + float(gf_away)) / 2.0
-            
-            # Safe calculation for average goals conceded
-            if ga_total is not None and str(ga_total).strip() != "":
-                avg_conceded = float(ga_total)
-            else:
-                ga_home = goals_against.get('home')
-                ga_away = goals_against.get('away')
-                if ga_home is not None and ga_away is not None and str(ga_home).strip() != "" and str(ga_away).strip() != "":
-                    avg_conceded = (float(ga_home) + float(ga_away)) / 2.0
-            
-            # Form: Recent W/D/L string → numeric score
-            form_str = api_stats.get('form', '') or ''
-            recent_form = form_str[-7:]  # Last 7 matches
-            if recent_form:
-                wins = recent_form.count('W')
-                draws = recent_form.count('D')
-                losses = recent_form.count('L')
-                total = wins + draws + losses
-                if total > 0:
-                    form_score = (wins * 1.0 + draws * 0.4) / total
-                    
-                    # Momentum: last 3 results
-                    last_3 = recent_form[-3:]
-                    if last_3.count('W') == 3:
-                        momentum = 0.2   # hot streak
-                    elif last_3.count('L') == 3:
-                        momentum = -0.2  # cold streak
+            csv_stats = {
+                'home_goals_scored': round(avg_s * 1.1, 3),
+                'home_goals_conceded': round(avg_c * 0.9, 3),
+                'away_goals_scored': round(avg_s * 0.85, 3),
+                'away_goals_conceded': round(avg_c * 1.15, 3),
+                'avg_goals_scored': round(avg_s, 3),
+                'avg_goals_conceded': round(avg_c, 3),
+                'form': 0.5,
+                'momentum': 0.0,
+            }
+            league_avg = {'avg_home_goals': 1.5, 'avg_away_goals': 1.15}
 
-        # Injuries (Web scrapes from Transfermarkt unconditionally)
-        injuries_list = self.get_transfermarkt_injuries(team_name)
-        injury_count = len(injuries_list) if isinstance(injuries_list, list) else 0
-        
-        # Injury penalty: each missing key player reduces expected goals slightly
-        injury_factor = max(0.75, 1.0 - injury_count * 0.005)
+        # 3. Injuries from Transfermarkt
+        injuries = self.get_transfermarkt_injuries(team_name)
+        injury_count = len(injuries) if isinstance(injuries, list) else 0
 
         result = {
-            'avg_goals_scored': round(avg_scored * injury_factor, 2),
-            'avg_goals_conceded': round(avg_conceded, 2),
-            'form': round(form_score, 2),
-            'momentum': round(momentum, 2),
+            **csv_stats,
             'injury_count': injury_count,
-            'team_id': team_id,
-            'elo': round(elo_score, 0) if elo_score is not None else None
+            'elo': round(elo_score, 0) if elo_score is not None else None,
+            'league_avg_home_goals': league_avg['avg_home_goals'],
+            'league_avg_away_goals': league_avg['avg_away_goals'],
         }
-        
+
         self._stats_cache[team_name] = result
         return result
+
 
 if __name__ == "__main__":
     fetcher = HistoricalDataFetcher()

@@ -1,284 +1,363 @@
 import numpy as np
 import pandas as pd
-import requests
-import io
 import os
 import joblib
+from math import exp, factorial
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from player_rater import PlayerRater
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "model.pkl")
-SCALER_PATH = os.path.join(os.path.dirname(__file__), "scaler.pkl")
+try:
+    from xgboost import XGBClassifier
+    HAS_XGB = True
+except ImportError:
+    HAS_XGB = False
+    print("XGBoost not found, using MLP only.")
+
+MODEL_DIR = os.path.dirname(__file__)
+MLP_PATH = os.path.join(MODEL_DIR, "model_mlp.pkl")
+XGB_PATH = os.path.join(MODEL_DIR, "model_xgb.pkl")
+SCALER_PATH = os.path.join(MODEL_DIR, "scaler.pkl")
+
 
 class Predictor:
+    """
+    Hybrid prediction engine:
+    1. Poisson xG Model (statistical baseline)
+    2. XGBoost + MLP Ensemble (machine learning)
+    3. Injury adjustments (Transfermarkt)
+    4. H2H adjustments (football-data.co.uk)
+
+    Trained on real club data from football-data.co.uk (5 leagues × 4 seasons).
+    """
+
+    # Feature names (9 features) — must be consistent between training and inference
+    FEATURE_NAMES = [
+        'home_goals_avg', 'home_conceded_avg',
+        'away_goals_avg', 'away_conceded_avg',
+        'goal_diff',
+        'home_form', 'away_form',
+        'home_momentum', 'away_momentum'
+    ]
+
     def __init__(self, data_fetcher):
         self.data_fetcher = data_fetcher
         self.player_rater = PlayerRater()
-        self.model, self.scaler = self._train_neural_network()
+        self.model_mlp, self.model_xgb, self.scaler = self._load_or_train_models()
 
-    def _train_neural_network(self):
-        """
-        Trains MLP Neural Network on REAL historical football data.
-        
-        Features (7 per match) — consistent between training and inference:
-          1. home_avg_goals   — goals scored average (rolling 10)
-          2. away_avg_goals   — goals scored average (rolling 10)
-          3. xg_diff          — home_avg - away_avg
-          4. home_form        — win rate last 7 matches (0.0–1.0)
-          5. away_form        — win rate last 7 matches (0.0–1.0)
-          6. home_momentum    — streak score last 3 matches (+/-0.2)
-          7. away_momentum    — streak score last 3 matches (+/-0.2)
-        """
-        if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
-            print("Kayitli model yukleniyor (model.pkl)...")
-            mlp = joblib.load(MODEL_PATH)
+    def _load_or_train_models(self):
+        """Load cached models or train from scratch using real club data."""
+        if os.path.exists(MLP_PATH) and os.path.exists(SCALER_PATH):
+            print("Kayıtlı modeller yükleniyor...")
+            mlp = joblib.load(MLP_PATH)
             scaler = joblib.load(SCALER_PATH)
-            print("Model basariyla yuklendi!")
-            return mlp, scaler
-        
-        print("Deep Learning modeli gercek mac verileriyle egitiliyor...")
-        X, y = [], []
+            xgb = joblib.load(XGB_PATH) if os.path.exists(XGB_PATH) and HAS_XGB else None
+            print("Modeller başarıyla yüklendi!")
+            return mlp, xgb, scaler
 
-        def _form_score(result_list):
-            """Converts a list of results (1=Win,0=Draw,-1=Loss) to form score 0.0-1.0."""
-            if not result_list:
-                return 0.5
-            last7 = result_list[-7:]
-            return (sum(1 for r in last7 if r == 1) + sum(0.4 for r in last7 if r == 0)) / len(last7)
+        return self._train_models()
 
-        def _momentum(result_list):
-            """Last 3 matches momentum: +0.2 for 3W, -0.2 for 3L, else 0.0."""
-            if len(result_list) < 3:
-                return 0.0
-            last3 = result_list[-3:]
-            if all(r == 1 for r in last3):
-                return 0.2
-            if all(r == -1 for r in last3):
-                return -0.2
-            return 0.0
+    def _train_models(self):
+        """Train MLP + XGBoost on real club data from football-data.co.uk."""
+        print("=" * 60)
+        print("Yapay Zeka modelleri gerçek kulüp verileriyle eğitiliyor...")
+        print("=" * 60)
 
-        try:
-            url = "https://raw.githubusercontent.com/martj42/international_results/master/results.csv"
-            r = requests.get(url, timeout=10)
-            if r.status_code == 200:
-                df = pd.read_csv(io.StringIO(r.text))
-                df = df.dropna(subset=['home_score', 'away_score'])
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
-                df = df[df['date'] >= '2005-01-01'].sort_values('date').reset_index(drop=True)
-                
-                goal_hist   = {}   # team → list of goals scored
-                result_hist = {}   # team → list of 1/0/-1 (win=1, draw=0, loss=-1)
-                
-                for _, row in df.iterrows():
-                    home, away  = row['home_team'], row['away_team']
-                    hs, aws = float(row['home_score']), float(row['away_score'])
-                    
-                    h_avg  = float(np.mean(goal_hist.get(home, [1.4])))
-                    a_avg  = float(np.mean(goal_hist.get(away, [1.4])))
-                    h_form = _form_score(result_hist.get(home, []))
-                    a_form = _form_score(result_hist.get(away, []))
-                    h_mom  = _momentum(result_hist.get(home, []))
-                    a_mom  = _momentum(result_hist.get(away, []))
-                    
-                    X.append([h_avg, a_avg, h_avg - a_avg, h_form, a_form, h_mom, a_mom])
-                    
-                    if hs > aws:
-                        y.append(1)
-                        h_res, a_res = 1, -1
-                    elif hs == aws:
-                        y.append(0)
-                        h_res, a_res = 0, 0
-                    else:
-                        y.append(2)
-                        h_res, a_res = -1, 1
-                    
-                    # Update histories (rolling last 10 for goals, last 10 for results)
-                    for team, g, res in [(home, hs, h_res), (away, aws, a_res)]:
-                        goal_hist.setdefault(team, []).append(g)
-                        goal_hist[team] = goal_hist[team][-10:]
-                        result_hist.setdefault(team, []).append(res)
-                        result_hist[team] = result_hist[team][-10:]
-                
-                print(f"  Gercek veri: {len(X)} mac, 7 ozellik kullanildi.")
-        except Exception as e:
-            print(f"  Veri cekilemedi, fallback: {e}")
-        
-        # Fallback
-        if len(X) < 100:
-            np.random.seed(42)
-            n = 10000
-            h = np.random.uniform(0.5, 3.5, n)
-            a = np.random.uniform(0.5, 3.5, n)
-            hf = np.random.uniform(0.3, 1.0, n)
-            af = np.random.uniform(0.3, 1.0, n)
-            hm = np.random.choice([-0.2, 0, 0.2], n)
-            am = np.random.choice([-0.2, 0, 0.2], n)
-            X = np.column_stack((h, a, h-a, hf, af, hm, am)).tolist()
-            y = []
-            for i in range(n):
-                hg = np.random.poisson(h[i] * (0.85 + hf[i]*0.3) * (1 + hm[i]*0.5))
-                ag = np.random.poisson(a[i] * (0.85 + af[i]*0.3) * (1 + am[i]*0.5))
-                y.append(1 if hg > ag else (0 if hg == ag else 2))
+        X_raw, y_raw = self.data_fetcher.get_training_data()
 
-        X = np.array(X)
-        y = np.array(y)
+        if len(X_raw) < 500:
+            print(f"  UYARI: Yetersiz veri ({len(X_raw)}), sentetik veri ekleniyor...")
+            X_raw, y_raw = self._add_synthetic_data(X_raw, y_raw)
+
+        X = np.array(X_raw)
+        y = np.array(y_raw)
+
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
-        
-        # Larger network since we have more features
-        mlp = MLPClassifier(hidden_layer_sizes=(128, 64, 32), max_iter=500, random_state=42)
-        mlp.fit(X_scaled, y)
-        
-        joblib.dump(mlp, MODEL_PATH)
-        joblib.dump(scaler, SCALER_PATH)
-        print(f"  Model kaydedildi: {MODEL_PATH}")
-        print(f"  Sinir agi egitimi tamamlandi.")
-        return mlp, scaler
 
-    def calculate_probabilities(self, home_team, away_team, home_injuries=None, away_injuries=None):
+        # --- MLP ---
+        print(f"  MLP eğitiliyor ({len(X)} örnek, {X.shape[1]} özellik)...")
+        mlp = MLPClassifier(
+            hidden_layer_sizes=(128, 64, 32),
+            max_iter=500,
+            random_state=42,
+            early_stopping=True,
+            validation_fraction=0.1
+        )
+        mlp.fit(X_scaled, y)
+
+        # --- XGBoost ---
+        xgb = None
+        if HAS_XGB:
+            print(f"  XGBoost eğitiliyor...")
+            xgb = XGBClassifier(
+                n_estimators=200,
+                max_depth=6,
+                learning_rate=0.1,
+                random_state=42,
+                eval_metric='mlogloss',
+                use_label_encoder=False
+            )
+            xgb.fit(X_scaled, y)
+
+        # Save
+        joblib.dump(mlp, MLP_PATH)
+        joblib.dump(scaler, SCALER_PATH)
+        if xgb:
+            joblib.dump(xgb, XGB_PATH)
+
+        print(f"  ✓ Modeller kaydedildi ({len(X)} maç ile eğitildi)")
+        return mlp, xgb, scaler
+
+    def _add_synthetic_data(self, X, y):
+        """Emergency fallback: add synthetic data if real data is insufficient."""
+        np.random.seed(42)
+        n = 5000
+        h = np.random.uniform(0.5, 3.0, n)
+        hc = np.random.uniform(0.5, 2.5, n)
+        a = np.random.uniform(0.3, 2.5, n)
+        ac = np.random.uniform(0.5, 3.0, n)
+        hf = np.random.uniform(0.2, 1.0, n)
+        af = np.random.uniform(0.2, 1.0, n)
+        hm = np.random.choice([-0.2, 0, 0.2], n)
+        am = np.random.choice([-0.2, 0, 0.2], n)
+
+        for i in range(n):
+            hg = np.random.poisson(h[i] * (0.85 + hf[i] * 0.3))
+            ag = np.random.poisson(a[i] * (0.85 + af[i] * 0.3))
+            label = 1 if hg > ag else (0 if hg == ag else 2)
+            X.append([h[i], hc[i], a[i], ac[i], h[i] - a[i], hf[i], af[i], hm[i], am[i]])
+            y.append(label)
+
+        return X, y
+
+    # ═══════════════════════════════════════════════
+    # Poisson xG Model
+    # ═══════════════════════════════════════════════
+
+    @staticmethod
+    def _poisson_pmf(lam, k):
+        """P(X=k) for Poisson distribution."""
+        return (lam ** k) * exp(-lam) / factorial(k)
+
+    def _poisson_match_probs(self, home_xg, away_xg, max_goals=8):
         """
-        Hybrid prediction: Elo-based formula (primary) + API-Football adjustments + Injury penalties.
-        
-        1. Elo difference → calibrated Win/Draw/Loss base probabilities
-           (same formula as FIFA, ClubElo, professional bookmakers)
-        2. API-Football form & momentum → ±10-15% fine-tuning
-        3. Injury tracking via iddaa.com + PlayerRater -> Penalty scaling
-        
-        This prevents neural-network miscalibration on club vs international data.
+        Compute 1/X/2 probabilities from Poisson distribution.
+        P(home=i, away=j) = P_poisson(home_xg, i) × P_poisson(away_xg, j)
         """
-        if home_injuries is None: home_injuries = []
-        if away_injuries is None: away_injuries = []
-        
+        p_home, p_draw, p_away = 0.0, 0.0, 0.0
+
+        for i in range(max_goals):
+            for j in range(max_goals):
+                p = self._poisson_pmf(home_xg, i) * self._poisson_pmf(away_xg, j)
+                if i > j:
+                    p_home += p
+                elif i == j:
+                    p_draw += p
+                else:
+                    p_away += p
+
+        total = p_home + p_draw + p_away
+        if total > 0:
+            p_home /= total
+            p_draw /= total
+            p_away /= total
+
+        return p_home, p_draw, p_away
+
+    def _compute_xg(self, home_stats, away_stats):
+        """
+        Compute expected goals using attack/defense strengths relative to league average.
+        Standard Dixon-Coles approach.
+        """
+        lg_home = home_stats.get('league_avg_home_goals', 1.5)
+        lg_away = home_stats.get('league_avg_away_goals', 1.15)
+
+        # Attack strength = team's scoring / league average
+        # Defense strength = team's conceding / league average
+        home_attack = home_stats['home_goals_scored'] / max(lg_home, 0.5)
+        home_defense = home_stats['home_goals_conceded'] / max(lg_away, 0.5)
+        away_attack = away_stats['away_goals_scored'] / max(lg_away, 0.5)
+        away_defense = away_stats['away_goals_conceded'] / max(lg_home, 0.5)
+
+        home_xg = home_attack * away_defense * lg_home
+        away_xg = away_attack * home_defense * lg_away
+
+        # Clamp to reasonable range
+        home_xg = max(0.3, min(4.5, home_xg))
+        away_xg = max(0.3, min(4.5, away_xg))
+
+        return round(home_xg, 2), round(away_xg, 2)
+
+    # ═══════════════════════════════════════════════
+    # ML Ensemble Prediction
+    # ═══════════════════════════════════════════════
+
+    def _ml_predict(self, home_stats, away_stats):
+        """Get ML ensemble probabilities from XGBoost + MLP."""
+        features = np.array([[
+            home_stats['home_goals_scored'],
+            home_stats['home_goals_conceded'],
+            away_stats['away_goals_scored'],
+            away_stats['away_goals_conceded'],
+            home_stats['home_goals_scored'] - away_stats['away_goals_scored'],
+            home_stats['form'],
+            away_stats['form'],
+            home_stats['momentum'],
+            away_stats['momentum'],
+        ]])
+
+        X_scaled = self.scaler.transform(features)
+
+        # MLP probabilities
+        mlp_probs = self.model_mlp.predict_proba(X_scaled)[0]
+        # Classes should be [0, 1, 2] = [Draw, Home, Away]
+        classes = list(self.model_mlp.classes_)
+
+        p_home_mlp = mlp_probs[classes.index(1)] if 1 in classes else 0.33
+        p_draw_mlp = mlp_probs[classes.index(0)] if 0 in classes else 0.33
+        p_away_mlp = mlp_probs[classes.index(2)] if 2 in classes else 0.33
+
+        if self.model_xgb is not None:
+            xgb_probs = self.model_xgb.predict_proba(X_scaled)[0]
+            xgb_classes = list(self.model_xgb.classes_)
+            p_home_xgb = xgb_probs[xgb_classes.index(1)] if 1 in xgb_classes else 0.33
+            p_draw_xgb = xgb_probs[xgb_classes.index(0)] if 0 in xgb_classes else 0.33
+            p_away_xgb = xgb_probs[xgb_classes.index(2)] if 2 in xgb_classes else 0.33
+
+            # Weighted ensemble: 60% XGBoost + 40% MLP
+            p_home_ml = 0.6 * p_home_xgb + 0.4 * p_home_mlp
+            p_draw_ml = 0.6 * p_draw_xgb + 0.4 * p_draw_mlp
+            p_away_ml = 0.6 * p_away_xgb + 0.4 * p_away_mlp
+        else:
+            p_home_ml = p_home_mlp
+            p_draw_ml = p_draw_mlp
+            p_away_ml = p_away_mlp
+
+        return p_home_ml, p_draw_ml, p_away_ml
+
+    # ═══════════════════════════════════════════════
+    # Main Probability Calculation
+    # ═══════════════════════════════════════════════
+
+    def calculate_probabilities(self, home_team, away_team):
+        """
+        Hybrid prediction combining:
+        1. Poisson xG model (30% weight) - statistical baseline
+        2. ML Ensemble (40% weight) - XGBoost/MLP trained on real data
+        3. Elo-based (30% weight) - calibrated win expectancy
+        4. H2H adjustment (±3%)
+        5. Injury adjustment (up to -20%)
+        """
         home_stats = self.data_fetcher.get_team_stats(home_team)
         away_stats = self.data_fetcher.get_team_stats(away_team)
-        
-        home_team_id = home_stats.get('team_id')
-        away_team_id = away_stats.get('team_id')
 
-        # Iddaa scraping iptal edildigi icin, fallback olarak Transfermarkt uzerinden sakatlari cekeriz
-        if not home_injuries:
-            home_injuries = self.data_fetcher.get_transfermarkt_injuries(home_team)
-            
-        if not away_injuries:
-            away_injuries = self.data_fetcher.get_transfermarkt_injuries(away_team)
-
-        # ── Elo-based base probabilities ──────────────────────────────
+        # ── Elo check ──
         elo_h = home_stats.get('elo')
         elo_a = away_stats.get('elo')
-        
-        # If we cannot find real Elo ratings, we explicitly skip the match
-        # rather than assigning a default 1400 which leads to massive false edges.
+
         if elo_h is None or elo_a is None:
             return None
-            
-        elo_h = float(elo_h)
-        elo_a = float(elo_a)
-        
-        # 30 Elo points ≈ home field advantage in football (previously 100, which was too high)
-        elo_diff = elo_h - elo_a + 30
-        
-        # Standard Elo win probability (logistic function, base 10, scale 400)
+
+        elo_h, elo_a = float(elo_h), float(elo_a)
+
+        # ── 1. Poisson xG ──
+        home_xg, away_xg = self._compute_xg(home_stats, away_stats)
+        p_home_poi, p_draw_poi, p_away_poi = self._poisson_match_probs(home_xg, away_xg)
+
+        # ── 2. ML Ensemble ──
+        p_home_ml, p_draw_ml, p_away_ml = self._ml_predict(home_stats, away_stats)
+
+        # ── 3. Elo-based ──
+        elo_diff = elo_h - elo_a + 30  # 30 pts home advantage
         p_home_elo = 1.0 / (1.0 + 10.0 ** (-elo_diff / 400.0))
-        
-        # Draw probability: peaks around Elo equality, decreases for large differences
         abs_diff = abs(elo_h - elo_a)
         p_draw_elo = max(0.08, 0.28 - 0.12 * (abs_diff / 400.0))
-        
-        # Normalise the three outcomes to 1.0
         p_away_elo = max(0.02, 1.0 - p_home_elo - p_draw_elo)
-        # Re-normalise in case of floating point drift
-        total = p_home_elo + p_draw_elo + p_away_elo
-        p_home_elo /= total
-        p_draw_elo /= total
-        p_away_elo /= total
+        t = p_home_elo + p_draw_elo + p_away_elo
+        p_home_elo /= t
+        p_draw_elo /= t
+        p_away_elo /= t
 
-        # ── API-Football adjustments (form & momentum) ────────────────
-        home_form = float(home_stats.get('form', 0.5))      # 0.0-1.0
-        away_form = float(away_stats.get('form', 0.5))
-        home_mom  = float(home_stats.get('momentum', 0.0))  # -0.2 to +0.2
-        away_mom  = float(away_stats.get('momentum', 0.0))
+        # ── Blend: 30% Poisson + 40% ML + 30% Elo ──
+        p_home = 0.30 * p_home_poi + 0.40 * p_home_ml + 0.30 * p_home_elo
+        p_draw = 0.30 * p_draw_poi + 0.40 * p_draw_ml + 0.30 * p_draw_elo
+        p_away = 0.30 * p_away_poi + 0.40 * p_away_ml + 0.30 * p_away_elo
 
-        # Form edge: difference in form shifts pHome vs pAway (much smaller impact now)
-        form_delta = (home_form - away_form) * 0.03  # Max ±3% swing
-        mom_delta  = (home_mom - away_mom) * 0.05    # Max ±5% swing
+        # ── 4. H2H adjustment ──
+        h2h = self.data_fetcher.get_h2h(home_team, away_team)
+        h2h_total = h2h.get('total', 0)
+        if h2h_total >= 3:
+            dominance = h2h.get('home_dominance', 0)
+            h2h_shift = dominance * 0.03  # max ±3%
+            p_home += h2h_shift
+            p_away -= h2h_shift
 
-        # form and momentum are now handled in the adjustment later
+        # ── 5. Injury adjustment ──
+        home_injuries = self.data_fetcher.get_transfermarkt_injuries(home_team)
+        away_injuries = self.data_fetcher.get_transfermarkt_injuries(away_team)
 
-        # ── Injury Modifiers (API-Football current injuries + PlayerRater) ───────
         home_penalty = 0.0
         home_injury_names = []
         for inj in home_injuries:
-            rating_data = self.player_rater.get_player_rating(inj, home_team_id)
-            w = rating_data.get('impact_weight', 0.02)
-            home_penalty += w
-            home_injury_names.append(f"{inj} ({rating_data.get('impact_category')})")
-            
+            rd = self.player_rater.get_player_rating(inj, home_team)
+            home_penalty += rd.get('impact_weight', 0.025)
+            home_injury_names.append(f"{inj} ({rd.get('impact_category', '?')})")
+
         away_penalty = 0.0
         away_injury_names = []
         for inj in away_injuries:
-            rating_data = self.player_rater.get_player_rating(inj, away_team_id)
-            w = rating_data.get('impact_weight', 0.02)
-            away_penalty += w
-            away_injury_names.append(f"{inj} ({rating_data.get('impact_category')})")
-            
-        # The penalty reduces a team's win probability directly and shifts it to the opponent
-        # Example: Home drops by 10% because of injuries, so p_home -= 0.10, p_away += 0.05, p_draw += 0.05
-        
-        p_home = p_home_elo + form_delta + mom_delta
-        p_away = p_away_elo - form_delta - mom_delta
-        
-        # Apply injuries heavily but don't exceed -20% max penalty per team
+            rd = self.player_rater.get_player_rating(inj, away_team)
+            away_penalty += rd.get('impact_weight', 0.025)
+            away_injury_names.append(f"{inj} ({rd.get('impact_category', '?')})")
+
         home_penalty = min(0.20, home_penalty)
         away_penalty = min(0.20, away_penalty)
-        
-        # Cross-adjust
+
         p_home = p_home * (1.0 - home_penalty) + p_away * away_penalty * 0.5
-        p_away = p_away * (1.0 - away_penalty) + p_home_elo * home_penalty * 0.5 # use original to avoid loop drift
+        p_away_adj = p_away * (1.0 - away_penalty) + p_home_elo * home_penalty * 0.5
+        p_away = p_away_adj
         p_draw = 1.0 - p_home - p_away
 
-        # Clamp to avoid negative probabilities
+        # Clamp & normalize
         p_home = max(0.02, min(0.95, p_home))
         p_away = max(0.02, min(0.95, p_away))
         p_draw = max(0.02, min(0.50, p_draw))
-
-        # Final normalise
-        total = p_home + p_draw + p_away
-        p_home /= total
-        p_draw /= total
-        p_away /= total
-
-        # xG for display / explanation purposes
-        home_xg = (home_stats['avg_goals_scored'] + away_stats['avg_goals_conceded']) / 2 * 1.05
-        away_xg = (away_stats['avg_goals_scored'] + home_stats['avg_goals_conceded']) / 2
-        home_xg = max(0.4, min(4.0, home_xg))
-        away_xg = max(0.4, min(4.0, away_xg))
+        t = p_home + p_draw + p_away
+        p_home /= t
+        p_draw /= t
+        p_away /= t
 
         return {
             '1': round(p_home, 3),
             'X': round(p_draw, 3),
             '2': round(p_away, 3),
-            'Home_xG': round(home_xg, 2),
-            'Away_xG': round(away_xg, 2),
+            'Home_xG': home_xg,
+            'Away_xG': away_xg,
             'Home_Elo': int(elo_h),
             'Away_Elo': int(elo_a),
-            'Home_Form': round(home_form, 2),
-            'Away_Form': round(away_form, 2),
-            'Home_Mom': round(home_mom, 2),
-            'Away_Mom': round(away_mom, 2),
+            'Home_Form': round(home_stats.get('form', 0.5), 2),
+            'Away_Form': round(away_stats.get('form', 0.5), 2),
+            'Home_Mom': round(home_stats.get('momentum', 0.0), 2),
+            'Away_Mom': round(away_stats.get('momentum', 0.0), 2),
             'Home_Penalty_Pct': round(home_penalty * 100, 1),
             'Away_Penalty_Pct': round(away_penalty * 100, 1),
             'Home_Missing_Strs': home_injury_names,
             'Away_Missing_Strs': away_injury_names,
-            'AI_Type': 'Elo + API-Football (Form/Momentum)'
+            'H2H_Total': h2h_total,
+            'H2H_Home_Wins': h2h.get('home_wins', 0),
+            'H2H_Draws': h2h.get('draws', 0),
+            'H2H_Away_Wins': h2h.get('away_wins', 0),
+            'Poisson_Home': round(p_home_poi, 3),
+            'Poisson_Draw': round(p_draw_poi, 3),
+            'Poisson_Away': round(p_away_poi, 3),
+            'AI_Type': 'Poisson xG + XGBoost/MLP Ensemble + Elo'
         }
+
 
 if __name__ == "__main__":
     from data_fetcher import HistoricalDataFetcher
     fetcher = HistoricalDataFetcher()
     predictor = Predictor(fetcher)
     probs = predictor.calculate_probabilities("Galatasaray", "Fenerbahce")
-    print("Sonuclar (Galatasaray vs Fenerbahce):", probs)
-
-
-
+    print("Sonuçlar (Galatasaray vs Fenerbahce):", probs)

@@ -13,11 +13,11 @@ class ValueAnalyzer:
         """
         return (prob * odds) - 1.0
 
-    def kelly_fraction(self, prob, odds, fraction=0.25):
+    def kelly_fraction(self, prob, odds, fraction=0.50):
         """
         Kelly Criterion: f* = (bp - q) / b
         where b = odds - 1, p = win probability, q = 1 - p
-        fraction: Kelly fraction (0.25 = quarter-Kelly = medium risk)
+        fraction: Kelly fraction (0.50 = half-Kelly = high risk)
         Returns fraction of bankroll to bet.
         """
         b = odds - 1.0
@@ -184,9 +184,9 @@ class ValueAnalyzer:
                            home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
                            kelly_f, kelly_bet):
         explanation = (
-            f"[Adim 1 - Beklenen Gol (xG)] API verileri uzerinden her iki takim icin guc analizi yapildi: "
+            f"[Adim 1 - Poisson xG Modeli] Lig istatistiklerinden hesaplanan beklenen gol (xG): "
             f"{fixture_row['Home_Team']}: {home_xg} gol / {fixture_row['Away_Team']}: {away_xg} gol.\n\n"
-            f"[Adim 2 - Yapay Zeka (Elo + Form + Sakatliklar)] '{fixture_row['Home_Team']}' (Elo: {home_elo}, Form: {home_form}/1.0, Ivme: {home_mom}) ve "
+            f"[Adim 2 - Yapay Zeka (Poisson + XGBoost/MLP + Elo)] '{fixture_row['Home_Team']}' (Elo: {home_elo}, Form: {home_form}/1.0, Ivme: {home_mom}) ve "
             f"'{fixture_row['Away_Team']}' (Elo: {away_elo}, Form: {away_form}/1.0, Ivme: {away_mom}) verilerine iliskin oyuncu eksikleri su sekilde: \n"
             f"> {inj_str}\n"
             f"> Yapay Zeka Oran Cezasi: {pen_str}\n"

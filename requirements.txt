@@ -1,10 +1,11 @@
 pandas
-numpy==2.4.2
-scikit-learn==1.8.0
+numpy
+scikit-learn
 joblib
 requests
 beautifulsoup4
 lxml
-streamlit==1.55.0
+streamlit
 scipy
 altair>=5.0.0
+xgboost
