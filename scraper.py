@@ -17,11 +17,10 @@ class IddaaScraper:
             'Accept': 'application/json'
         }
         
-    def fetch_daily_bulten(self, max_matches=20):
+    def fetch_daily_bulten(self):
         """
         Fetches the current football bulletin from iddaa.com API.
-        Returns only the next `max_matches` (default: 20) soonest MBS 1 (Tek Maç) fixtures,
-        sorted by match time ascending.
+        Returns all MBS 1 (Tek Maç) fixtures, sorted by match time ascending.
         """
 
         match_data = []
@@ -75,10 +74,9 @@ class IddaaScraper:
                                 'Kral_Oran': 'Evet' if is_kral_oran else 'Hayır',
                             })
                             
-                # Sort by match date (earliest first) and take the next max_matches
+                # Sort by match date (earliest first)
                 match_data.sort(key=lambda x: x['Date'])
-                match_data = match_data[:max_matches]
-                print(f"Sonraki {len(match_data)} Tek Mac (MBS 1) basariyla cekendi.")
+                print(f"Toplam {len(match_data)} Tek Mac (MBS 1) basariyla cekendi.")
 
             else:
                 print(f"Bülten çekilirken hata oluştu: Durum Kodu {response.status_code}")
