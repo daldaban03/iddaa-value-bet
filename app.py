@@ -20,6 +20,7 @@ Bu araç, seçili maçların **Yapay Zeka** modeli (Elo + Form + Transfermarkt S
 # Initialize modules once and cache them for the entire server session
 @st.cache_resource
 def load_modules():
+    # Cache buster v2: Force reload of classes to fix AttributeError
     scraper = IddaaScraper()
     fetcher = HistoricalDataFetcher()
     predictor = Predictor(fetcher)
