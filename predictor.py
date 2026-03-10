@@ -317,8 +317,8 @@ class Predictor:
             away_injury_names.append(f"{inj_dict['name']} ({rd.get('impact_category', '?')})")
 
         # Cap max penalty so it doesn't wreck the system completely (e.g. half squad missing)
-        home_penalty = min(0.35, home_penalty)
-        away_penalty = min(0.35, away_penalty)
+        home_penalty = min(0.20, home_penalty)
+        away_penalty = min(0.20, away_penalty)
 
         p_home = p_home * (1.0 - home_penalty) + p_away * away_penalty * 0.5
         p_away_adj = p_away * (1.0 - away_penalty) + p_home_elo * home_penalty * 0.5

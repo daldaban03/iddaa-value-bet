@@ -25,14 +25,14 @@ class PlayerRater:
 
         # Impact logic: player_value / squad_value * multiplier
         # A 50m player in a 200m squad = 25% of the squad's financial worth.
-        # We cap a single player's impact at 12.5% (to prevent 1 player tanking chances to 0 too fast).
+        # We cap a single player's impact at 8% (to prevent 1 player tanking chances too fast).
         raw_ratio = val / squad_val
-        impact = raw_ratio * 0.8  # 80% of their financial share translates to win-chances impact
+        impact = raw_ratio * 0.45  # 45% of their financial share translates to win-chances impact, significantly softer than before
         
-        impact = min(0.125, impact) 
+        impact = min(0.080, impact) 
         
         # Categorize for UI
-        if impact > 0.05:
+        if impact > 0.045:
             cat = 'Yıldız / Kilit'
         elif impact > 0.02:
             cat = 'İlk 11 Oyuncusu'

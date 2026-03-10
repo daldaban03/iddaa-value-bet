@@ -111,7 +111,7 @@ if 'value_bets' in st.session_state and not st.session_state['value_bets'].empty
     
     if singles:
         st.subheader("📌 Tekli Bahisler (Düşük Risk)")
-        st.markdown(f"**Sermaye:** {BANKROLL:,.0f} TL | **Risk İştahı:** Orta (Quarter-Kelly)")
+        st.markdown(f"**Sermaye:** {BANKROLL:,.0f} TL | **Risk İştahı:** Yüksek (Half-Kelly)")
         
         for i, bet in enumerate(singles, 1):
             with st.container():
