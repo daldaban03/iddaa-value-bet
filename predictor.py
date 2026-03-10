@@ -297,22 +297,28 @@ class Predictor:
         home_injuries = self.data_fetcher.get_transfermarkt_injuries(home_team)
         away_injuries = self.data_fetcher.get_transfermarkt_injuries(away_team)
 
+        # Baseline squad values for calculations (heuristic placeholders)
+        h_squad_val = 150.0 if elo_h < 1800 else 400.0
+        a_squad_val = 150.0 if elo_a < 1800 else 400.0
+
         home_penalty = 0.0
         home_injury_names = []
-        for inj in home_injuries:
-            rd = self.player_rater.get_player_rating(inj, home_team)
-            home_penalty += rd.get('impact_weight', 0.025)
-            home_injury_names.append(f"{inj} ({rd.get('impact_category', '?')})")
+        for inj_dict in home_injuries:
+            rd = self.player_rater.get_player_rating(inj_dict, home_team, h_squad_val)
+            home_penalty += rd.get('impact_weight', 0.015)
+            # Format: Name (Category/Value)
+            home_injury_names.append(f"{inj_dict['name']} ({rd.get('impact_category', '?')})")
 
         away_penalty = 0.0
         away_injury_names = []
-        for inj in away_injuries:
-            rd = self.player_rater.get_player_rating(inj, away_team)
-            away_penalty += rd.get('impact_weight', 0.025)
-            away_injury_names.append(f"{inj} ({rd.get('impact_category', '?')})")
+        for inj_dict in away_injuries:
+            rd = self.player_rater.get_player_rating(inj_dict, away_team, a_squad_val)
+            away_penalty += rd.get('impact_weight', 0.015)
+            away_injury_names.append(f"{inj_dict['name']} ({rd.get('impact_category', '?')})")
 
-        home_penalty = min(0.20, home_penalty)
-        away_penalty = min(0.20, away_penalty)
+        # Cap max penalty so it doesn't wreck the system completely (e.g. half squad missing)
+        home_penalty = min(0.35, home_penalty)
+        away_penalty = min(0.35, away_penalty)
 
         p_home = p_home * (1.0 - home_penalty) + p_away * away_penalty * 0.5
         p_away_adj = p_away * (1.0 - away_penalty) + p_home_elo * home_penalty * 0.5
