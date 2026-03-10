@@ -422,16 +422,47 @@ class HistoricalDataFetcher:
                 soup = BeautifulSoup(r.text, 'html.parser')
                 tables = soup.find_all('table', class_='items')
                 if tables:
-                    for td in tables[0].find_all('td', class_='hauptlink'):
-                        a_tag = td.find('a')
-                        if a_tag and '/profil/spieler/' in a_tag.get('href', ''):
-                            p_name = a_tag.text.strip()
-                            if p_name and p_name not in injured_players:
-                                injured_players.append(p_name)
+                    rows = tables[0].find_all('tr', class_=['odd', 'even'])
+                    for row in rows:
+                        name_td = row.find('td', class_='hauptlink')
+                        if not name_td: continue
+                        
+                        a_tag = name_td.find('a')
+                        if not (a_tag and '/profil/spieler/' in a_tag.get('href', '')):
+                            continue
+                            
+                        p_name = a_tag.text.strip()
+                        if p_name and not any(p.get('name') == p_name for p in injured_players):
+                            tds = row.find_all('td')
+                            val_str = ""
+                            if len(tds) > 0:
+                                val_str = tds[-1].text.strip()
+                            
+                            value_m = self._parse_market_value(val_str)
+                            injured_players.append({
+                                'name': p_name,
+                                'val_str': val_str,
+                                'value_m': value_m
+                            })
         except Exception as e:
             print(f"TM injuries error for {team_name}: {e}")
 
         return injured_players
+
+    def _parse_market_value(self, val_str):
+        """Converts strings like '15.00m €' or '500k €' to float millions (e.g., 15.0 or 0.50)."""
+        val_str = val_str.lower().replace('€', '').strip()
+        if not val_str or val_str == '-':
+            return 0.0
+        try:
+            if 'm' in val_str:
+                return float(val_str.replace('m', '').strip())
+            elif 'k' in val_str:
+                return float(val_str.replace('k', '').strip()) / 1000.0
+            else:
+                return float(val_str)
+        except:
+            return 0.0
 
     # ═══════════════════════════════════════════════
     # Training Data for ML Model
