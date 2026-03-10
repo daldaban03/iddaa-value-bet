@@ -5,7 +5,7 @@ joblib
 requests
 beautifulsoup4
 lxml
-streamlit
+streamlit>=1.30.0
 scipy
 altair>=5.0.0
 xgboost
