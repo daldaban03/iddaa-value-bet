@@ -175,14 +175,29 @@ class ValueAnalyzer:
                 system_stake = round(bankroll * system_kelly, 0)
                 system_stake = max(5, min(system_stake, bankroll * 0.05))  # Cap at 5% of bankroll
                 
+                import math
+                n = len(system_legs)
+                is_full_system = n <= 3
+                k = n if is_full_system else n - 1
+                combinations = math.comb(n, k)
+                
+                # The calculated system stake is treated as the "Total Stake" for the coupon
+                # So we deduce the per-column stake from it
+                total_stake = system_stake
+                per_column_stake = system_stake / combinations
+                
+                # E.g. "50 TL (150 TL)"
+                formatted_stake = f"{per_column_stake:,.0f} TL ({total_stake:,.0f} TL)"
+                
                 system_coupon = {
                     'legs': system_legs,
                     'combined_odds': round(combined_odds, 2),
                     'combined_prob': f"{combined_prob*100:.1f}%",
                     'system_ev': f"{system_ev*100:.1f}%",
-                    'stake': system_stake,
-                    'potential_win': round(system_stake * combined_odds, 0),
-                    'type': f"{len(system_legs)}/{len(system_legs)} Sistem" if len(system_legs) <= 3 else f"{len(system_legs)-1}/{len(system_legs)} Sistem"
+                    'stake': total_stake,  # keep for potential math in UI
+                    'formatted_stake': formatted_stake,
+                    'potential_win': round(total_stake * combined_odds, 0),
+                    'type': f"{k}/{n} Sistem"
                 }
         
         return singles, system_coupon, total_stake

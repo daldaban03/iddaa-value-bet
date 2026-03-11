@@ -146,7 +146,7 @@ if 'value_bets' in st.session_state and not st.session_state['value_bets'].empty
         with r2:
             st.metric("Kombine Olasılık", system_coupon['combined_prob'])
         with r3:
-            st.metric("Yatırım", f"{system_coupon['stake']:,.0f} TL")
+            st.metric("Yatırım", system_coupon['formatted_stake'])
         with r4:
             st.metric("Potansiyel Kazanç", f"{system_coupon['potential_win']:,.0f} TL")
         
