@@ -45,6 +45,11 @@ class ValueAnalyzer:
             if probs is None:
                 continue
                 
+            # Handle explicit skips (e.g., missing genuine ClubElo ratings)
+            if 'Skip_Reason' in probs:
+                print(f"  [Analyzer] Skipping match {row['Match']}: {probs['Skip_Reason']}")
+                continue
+                
             home_xg = probs.get('Home_xG', 0)
             away_xg = probs.get('Away_xG', 0)
             

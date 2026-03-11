@@ -266,17 +266,20 @@ class Predictor:
         if not home_stats or not away_stats:
             return None
 
-        # Elo ratings
+        # Elo ratings and Sources
         home_elo = home_stats.get('elo')
         away_elo = away_stats.get('elo')
+        
+        home_elo_src = home_stats.get('data_quality', {}).get('elo_source', 'Unknown')
+        away_elo_src = away_stats.get('data_quality', {}).get('elo_source', 'Unknown')
 
-        if home_elo is None or away_elo is None:
-            # Report missing Elo but don't crash the loop
+        if home_elo is None or away_elo is None or home_elo_src != 'ClubElo' or away_elo_src != 'ClubElo':
+            # Skip matches where we don't have real ClubElo data
             missing = []
-            if home_elo is None: missing.append(home_team)
-            if away_elo is None: missing.append(away_team)
-            print(f"  [!] Elo Rating Not Found for: {', '.join(missing)}")
-            return None
+            if home_elo is None or home_elo_src != 'ClubElo': missing.append(home_team)
+            if away_elo is None or away_elo_src != 'ClubElo': missing.append(away_team)
+            print(f"  [!] Genuine ClubElo Rating Not Found for: {', '.join(missing)} - Skipping match.")
+            return {'Skip_Reason': f"Elo Not Found for {', '.join(missing)}"}
 
         elo_h, elo_a = float(home_elo), float(away_elo)
 
