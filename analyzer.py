@@ -145,9 +145,9 @@ class ValueAnalyzer:
                 singles.append(bet)
                 total_stake += float(str(bet['kelly_bet']).replace(',', ''))
             
-            # Candidates for system coupon: high confidence bets
+            # Candidates for system coupon
             prob_val = float(row['AI_Probability'].replace('%', '')) / 100
-            if prob_val >= 0.40 and len(system_legs) < max_system_legs:
+            if len(system_legs) < max_system_legs:
                 system_legs.append(bet)
         
         # Build system coupon if we have enough legs
