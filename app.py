@@ -20,7 +20,7 @@ Bu araç, seçili maçların **Yapay Zeka** modeli (Elo + Form + Transfermarkt S
 # Initialize modules once and cache them for the entire server session
 @st.cache_resource
 def load_modules():
-    # Cache buster v2: Force reload of classes to fix AttributeError
+    # Cache buster v3: Force reload of classes to fix AttributeError
     scraper = IddaaScraper()
     fetcher = HistoricalDataFetcher()
     predictor = Predictor(fetcher)
@@ -77,7 +77,7 @@ with col2:
                 st.success(f"**{len(df)}** adet Value Bet (Değerli Bahis) bulundu!")
                 
                 # Ana tablo: Explanation ve Expected_Value gizle, eksik ve kelly göster
-                display_cols = ['Date', 'Match', 'Prediction', 'AI_Probability', 'Iddaa_Odds', 
+                display_cols = ['Date', 'Match', 'Veri_Kalitesi', 'Prediction', 'AI_Probability', 'Iddaa_Odds', 
                                'Edge', 'Ev_Eksik', 'Dep_Eksik', 'Kelly_Pct', 'Kelly_Bahis']
                 available_cols = [c for c in display_cols if c in df.columns]
                 st.dataframe(df[available_cols], use_container_width=True)

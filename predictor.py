@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import sys
 import os
 import joblib
 from math import exp, factorial
@@ -13,6 +14,7 @@ try:
 except ImportError:
     HAS_XGB = False
     print("XGBoost not found, using MLP only.")
+    sys.stdout.flush()
 
 MODEL_DIR = os.path.dirname(__file__)
 MLP_PATH = os.path.join(MODEL_DIR, "model_mlp.pkl")
@@ -49,10 +51,12 @@ class Predictor:
         """Load cached models or train from scratch using real club data."""
         if os.path.exists(MLP_PATH) and os.path.exists(SCALER_PATH):
             print("Kayıtlı modeller yükleniyor...")
+            sys.stdout.flush()
             mlp = joblib.load(MLP_PATH)
             scaler = joblib.load(SCALER_PATH)
             xgb = joblib.load(XGB_PATH) if os.path.exists(XGB_PATH) and HAS_XGB else None
             print("Modeller başarıyla yüklendi!")
+            sys.stdout.flush()
             return mlp, xgb, scaler
 
         return self._train_models()
@@ -60,13 +64,17 @@ class Predictor:
     def _train_models(self):
         """Train MLP + XGBoost on real club data from football-data.co.uk."""
         print("=" * 60)
+        sys.stdout.flush()
         print("Yapay Zeka modelleri gerçek kulüp verileriyle eğitiliyor...")
+        sys.stdout.flush()
         print("=" * 60)
+        sys.stdout.flush()
 
         X_raw, y_raw = self.data_fetcher.get_training_data()
 
         if len(X_raw) < 500:
             print(f"  UYARI: Yetersiz veri ({len(X_raw)}), sentetik veri ekleniyor...")
+            sys.stdout.flush()
             X_raw, y_raw = self._add_synthetic_data(X_raw, y_raw)
 
         X = np.array(X_raw)
@@ -77,6 +85,7 @@ class Predictor:
 
         # --- MLP ---
         print(f"  MLP eğitiliyor ({len(X)} örnek, {X.shape[1]} özellik)...")
+        sys.stdout.flush()
         mlp = MLPClassifier(
             hidden_layer_sizes=(128, 64, 32),
             max_iter=500,
@@ -90,6 +99,7 @@ class Predictor:
         xgb = None
         if HAS_XGB:
             print(f"  XGBoost eğitiliyor...")
+            sys.stdout.flush()
             xgb = XGBClassifier(
                 n_estimators=200,
                 max_depth=6,
@@ -107,6 +117,7 @@ class Predictor:
             joblib.dump(xgb, XGB_PATH)
 
         print(f"  ✓ Modeller kaydedildi ({len(X)} maç ile eğitildi)")
+        sys.stdout.flush()
         return mlp, xgb, scaler
 
     def _add_synthetic_data(self, X, y):
@@ -252,32 +263,44 @@ class Predictor:
         home_stats = self.data_fetcher.get_team_stats(home_team)
         away_stats = self.data_fetcher.get_team_stats(away_team)
 
-        # ── Elo check ──
-        elo_h = home_stats.get('elo')
-        elo_a = away_stats.get('elo')
-
-        if elo_h is None or elo_a is None:
+        if not home_stats or not away_stats:
             return None
 
-        elo_h, elo_a = float(elo_h), float(elo_a)
+        # Elo ratings
+        home_elo = home_stats.get('elo')
+        away_elo = away_stats.get('elo')
 
-        # ── 1. Poisson xG ──
+        if home_elo is None or away_elo is None:
+            # Report missing Elo but don't crash the loop
+            missing = []
+            if home_elo is None: missing.append(home_team)
+            if away_elo is None: missing.append(away_team)
+            print(f"  [!] Elo Rating Not Found for: {', '.join(missing)}")
+            return None
+
+        elo_h, elo_a = float(home_elo), float(away_elo)
+
+        # 1. Poisson xG
         home_xg, away_xg = self._compute_xg(home_stats, away_stats)
         p_home_poi, p_draw_poi, p_away_poi = self._poisson_match_probs(home_xg, away_xg)
 
-        # ── 2. ML Ensemble ──
+        # 2. ML Ensemble
         p_home_ml, p_draw_ml, p_away_ml = self._ml_predict(home_stats, away_stats)
 
-        # ── 3. Elo-based ──
+        # 3. Elo-based
         elo_diff = elo_h - elo_a + 30  # 30 pts home advantage
         p_home_elo = 1.0 / (1.0 + 10.0 ** (-elo_diff / 400.0))
+        # A simple empirical model for draw probability based on Elo difference
         abs_diff = abs(elo_h - elo_a)
-        p_draw_elo = max(0.08, 0.28 - 0.12 * (abs_diff / 400.0))
-        p_away_elo = max(0.02, 1.0 - p_home_elo - p_draw_elo)
-        t = p_home_elo + p_draw_elo + p_away_elo
-        p_home_elo /= t
-        p_draw_elo /= t
-        p_away_elo /= t
+        p_draw_elo = max(0.15, 0.25 - abs_diff / 1000.0)
+        p_away_elo = 1.0 - p_home_elo - p_draw_elo
+        if p_away_elo < 0: p_away_elo = 0
+
+        # Normalizing Elo probabilities to sum to 1
+        total_elo = p_home_elo + p_draw_elo + p_away_elo
+        p_home_elo /= total_elo
+        p_draw_elo /= total_elo
+        p_away_elo /= total_elo
 
         # ── Blend: 30% Poisson + 40% ML + 30% Elo ──
         p_home = 0.30 * p_home_poi + 0.40 * p_home_ml + 0.30 * p_home_elo

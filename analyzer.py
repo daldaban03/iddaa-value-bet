@@ -70,6 +70,9 @@ class ValueAnalyzer:
             h_inj_count = len(h_miss_strs)
             a_inj_count = len(a_miss_strs)
             
+            reliability = probs.get('Reliability', 'Low')
+            r_flags = probs.get('Reliability_Flags', [])
+            
             # Check Home Win (1)
             ev_1 = self.calculate_expected_value(probs['1'], row['Odds_1'])
             if ev_1 >= min_edge:
@@ -79,7 +82,7 @@ class ValueAnalyzer:
                     row, '1 (Ev Sahibi)', probs['1'], row['Odds_1'], ev_1,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet
+                    kelly_f, kelly_bet, reliability, r_flags
                 ))
 
             # Check Draw (X)
@@ -91,7 +94,7 @@ class ValueAnalyzer:
                     row, 'X (Beraberlik)', probs['X'], row['Odds_X'], ev_x,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet
+                    kelly_f, kelly_bet, reliability, r_flags
                 ))
 
             # Check Away Win (2)
@@ -103,7 +106,7 @@ class ValueAnalyzer:
                     row, '2 (Deplasman)', probs['2'], row['Odds_2'], ev_2,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet
+                    kelly_f, kelly_bet, reliability, r_flags
                 ))
 
         # Convert to DataFrame and sort by Expected Value (highest first)
@@ -182,8 +185,13 @@ class ValueAnalyzer:
     def _create_result_row(self, fixture_row, prediction_type, prob, odds, ev,
                            home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                            home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                           kelly_f, kelly_bet):
+                           kelly_f, kelly_bet, reliability, r_flags):
+        
+        rel_icon = "🟢 Yüksek" if reliability == "High" else ("🟡 Orta" if reliability == "Medium" else "🔴 Düşük")
+        flags_str = ", ".join(r_flags) if r_flags else "Tümü Orijinal Kaynak"
+        
         explanation = (
+            f"[Veri Kalitesi]: {rel_icon} ({flags_str})\n\n"
             f"[Adim 1 - Poisson xG Modeli] Lig istatistiklerinden hesaplanan beklenen gol (xG): "
             f"{fixture_row['Home_Team']}: {home_xg} gol / {fixture_row['Away_Team']}: {away_xg} gol.\n\n"
             f"[Adim 2 - Yapay Zeka (Poisson + XGBoost/MLP + Elo)] '{fixture_row['Home_Team']}' (Elo: {home_elo}, Form: {home_form}/1.0, Ivme: {home_mom}) ve "
@@ -202,6 +210,7 @@ class ValueAnalyzer:
             'Prediction': prediction_type,
             'AI_Probability': f"{prob*100:.1f}%",
             'Iddaa_Odds': odds,
+            'Veri_Kalitesi': rel_icon,
             'Expected_Value': round(ev, 3),
             'Edge': f"{ev*100:.1f}%",
             'Ev_Eksik': h_inj_count,
