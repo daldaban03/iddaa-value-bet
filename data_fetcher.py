@@ -157,7 +157,7 @@ class HistoricalDataFetcher:
 
         print(f"  [Elo] Querying for: {team_name} -> {formatted}")
         sys.stdout.flush()
-        url = f"https://api.clubelo.com/{formatted}"
+        url = f"http://api.clubelo.com/{formatted}"
         try:
             # Separate connect and read timeouts to prevent infinite hangs
             # 2.0s connect, 5.0s read
