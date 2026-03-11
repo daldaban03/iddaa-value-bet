@@ -131,7 +131,6 @@ class HistoricalDataFetcher:
         normalized = mapped.replace(" ", "")
         # Remove any remaining Turkish characters or special punctuation
         normalized = unicodedata.normalize('NFD', normalized).encode('ascii', 'ignore').decode('utf-8')
-        print(f"  [DEBUG] Norm: '{name}' -> lookup='{lookup_name}' -> mapped='{mapped}' -> final='{normalized}'")
         return normalized
 
     # ═══════════════════════════════════════════════
