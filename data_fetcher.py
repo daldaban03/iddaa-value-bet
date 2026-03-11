@@ -123,6 +123,13 @@ class HistoricalDataFetcher:
             'fener': 'Fenerbahce',
             'besik': 'Besiktas',
             'trabzon': 'Trabzonspor',
+            'lech poznan': 'Lech',
+            'az alkmaar': 'AZ',
+            'nottingham forest': 'Forest',
+            'krc genk': 'Genk',
+            'crystal palace': 'Palace',
+            'shakhtar donetsk': 'Shakhtar',
+            'sparta prag': 'SpartaPrague',
         }
         
         # Aggressive cleaning for Iddaa names (which often have leading/trailing space or weird dashes)
