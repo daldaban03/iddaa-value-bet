@@ -360,7 +360,7 @@ class Predictor:
         p_draw /= t
         p_away /= t
 
-        return {
+        ret_dict = {
             '1': round(p_home, 3),
             'X': round(p_draw, 3),
             '2': round(p_away, 3),
@@ -385,6 +385,40 @@ class Predictor:
             'Poisson_Away': round(p_away_poi, 3),
             'AI_Type': 'Poisson xG + XGBoost/MLP Ensemble + Elo'
         }
+        
+        # ── Data Quality / Reliability ──
+        h_dq = home_stats.get('data_quality', {})
+        a_dq = away_stats.get('data_quality', {})
+        
+        flags = []
+        is_low = False
+        is_medium = False
+        
+        for dq in [h_dq, a_dq]:
+            if dq.get('elo_source') != 'ClubElo':
+                flags.append('Elo_Ikincil_veya_Tahmini')
+                is_medium = True
+            if dq.get('stats_source') != 'football-data':
+                flags.append('Istatistik_Eksik_veya_Tahmini')
+                is_low = True
+            if dq.get('injury_source') != 'Transfermarkt':
+                flags.append('Sakatlik_Ikincil_veya_Yok')
+                is_medium = True
+                
+        # Remove duplicates
+        flags = list(set(flags))
+        
+        if is_low:
+            reliability = 'Low'
+        elif is_medium:
+            reliability = 'Medium'
+        else:
+            reliability = 'High'
+            
+        ret_dict['Reliability'] = reliability
+        ret_dict['Reliability_Flags'] = flags
+
+        return ret_dict
 
 
 if __name__ == "__main__":
