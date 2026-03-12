@@ -210,6 +210,8 @@ with tab2:
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                     box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+                    white-space: nowrap;
+                    flex-shrink: 0; /* Badge should not shrink */
                 }
                 .stats-grid {
                     display: grid;
@@ -225,38 +227,45 @@ with tab2:
                     flex-direction: column;
                 }
                 .metric-label {
-                    font-size: 10px;
+                    font-size: 11px;
                     text-transform: uppercase;
                     font-weight: 700;
-                    color: #94a3b8;
+                    color: #cbd5e1; /* Brighter gray for better visibility */
                     letter-spacing: 1.2px;
                     margin-bottom: 6px;
                 }
                 .metric-value {
                     font-size: 20px;
                     font-weight: 800;
-                    color: #f1f5f9;
+                    color: #f8fafc;
                 }
                 .kelly-section {
-                    margin-top: 20px;
-                    padding: 16px;
-                    background: linear-gradient(135deg, rgba(250, 204, 21, 0.1), rgba(250, 204, 21, 0.2));
-                    border: 1px solid rgba(250, 204, 21, 0.3);
+                    margin-top: 24px;
+                    padding: 20px;
+                    background: linear-gradient(135deg, rgba(250, 204, 21, 0.15), rgba(250, 204, 21, 0.05));
+                    border: 1px solid rgba(250, 204, 21, 0.4);
                     border-radius: 12px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    gap: 15px; /* Prevent text clashing */
                 }
                 .kelly-amount {
-                    font-size: 24px;
+                    font-size: 26px;
                     font-weight: 900;
                     color: #facc15;
                     text-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
+                    white-space: nowrap;
                 }
                 .date-badge {
-                    font-size: 12px;
-                    color: #94a3b8;
-                    margin-top: 5px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: #f1f5f9; /* Near white for high visibility */
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 4px 10px;
+                    border-radius: 6px;
+                    display: inline-block;
+                    margin-bottom: 12px;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -308,7 +317,7 @@ with tab2:
                                 <div class="match-title">⚽ {row['Match']}</div>
                                 <div class="prediction-badge">{row['Prediction']}</div>
                             </div>
-                            <div style="font-size: 12px; margin-bottom: 10px; opacity: 0.8;">📅 Tarih (TSİ): {row['Date']}</div>
+                            <div class="date-badge">📅 {row['Date']} (TSİ)</div>
                             <div class="stats-grid">
                                 <div class="metric-item">
                                     <div class="metric-label">AI Olasılık</div>
@@ -329,8 +338,8 @@ with tab2:
                             </div>
                             <div class="kelly-section">
                                 <div>
-                                    <div class="metric-label">Önerilen Kelly Yatırımı</div>
-                                    <div style="font-size: 12px; opacity: 0.8;">Bankroll Oranı: {row['Kelly_Pct']}</div>
+                                    <div class="metric-label" style="color: #fde047;">Önerilen Kelly Yatırımı</div>
+                                    <div style="font-size: 13px; opacity: 0.9; color: #f1f5f9; font-weight: 600;">Bankroll Oranı: {row['Kelly_Pct']}</div>
                                 </div>
                                 <div class="kelly-amount">{row['Kelly_Bahis']} TL</div>
                             </div>
