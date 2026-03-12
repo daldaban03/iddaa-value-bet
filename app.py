@@ -52,24 +52,36 @@ with col1:
 with col2:
     st.header("2. Value Bet Analizi")
     
+    # Initialize UI state
+    if 'is_analyzing' not in st.session_state:
+        st.session_state['is_analyzing'] = False
+        
     # Kullanıcıya güvenli marj (Edge) seçtirme şansı verelim
-    min_edge_pct = st.slider("Minimum Beklenen Kâr (Edge) Oranı %", min_value=0.0, max_value=30.0, value=5.0, step=1.0)
+    min_edge_pct = st.slider(
+        "Minimum Beklenen Kâr (Edge) Oranı %", 
+        min_value=0.0, max_value=30.0, value=5.0, step=1.0,
+        disabled=st.session_state['is_analyzing']
+    )
     st.caption("Not: Bültendeki oranların şirket kâr marjını yenmesi için en az %5 seçilmesi daha risksizdir (objektif).")
 
     if 'bulten' in st.session_state:
-        if st.button("Yapay Zeka ile Analiz Et", type="primary"):
-            with st.spinner("Maç istatistikleri ve sakatlıklar inceleniyor, ihtimaller hesaplanıyor..."):
-                try:
+        if st.button("Yapay Zeka ile Analiz Et", type="primary", disabled=st.session_state['is_analyzing']):
+            st.session_state['is_analyzing'] = True
+            try:
+                with st.spinner("Maç istatistikleri ve sakatlıklar inceleniyor, ihtimaller hesaplanıyor..."):
                     value_bets_df = analyzer.analyze_fixtures(
                         st.session_state['bulten'], 
                         min_edge=min_edge_pct/100.0,
                         bankroll=BANKROLL
                     )
                     st.session_state['value_bets'] = value_bets_df
-                except Exception as e:
-                    st.error(f"Hata oluştu: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
+            except Exception as e:
+                st.error(f"Hata oluştu: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+            finally:
+                st.session_state['is_analyzing'] = False
+                st.rerun() # Refresh UI to enable slider/button again
                     
         if 'value_bets' in st.session_state:
             df = st.session_state['value_bets']
