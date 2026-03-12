@@ -157,7 +157,7 @@ with tab2:
                     color: #27ae60;
                 }
                 </style>
-            """, unsafe_content_safe=True)
+            """, unsafe_allow_html=True)
 
             st.success(f"**{len(df)}** adet Değerli Bahis (Value Bet) bulundu!")
             
@@ -191,7 +191,7 @@ with tab2:
                                 💰 Önerilen: <b>{row['Kelly_Bahis']} TL</b> ({row['Kelly_Pct']})
                             </div>
                         </div>
-                    """, unsafe_content_safe=True)
+                    """, unsafe_allow_html=True)
 
             # AI Düşünce paneli
             if 'Explanation' in df.columns:
