@@ -32,11 +32,13 @@ class BackgroundAnalyzer(threading.Thread):
         self.interval = interval_seconds
         self.running = False
         
-        # Core modules for the worker
+        # Start only the scraper synchonously
         self.scraper = IddaaScraper()
-        self.fetcher = HistoricalDataFetcher()
-        self.predictor = Predictor(self.fetcher)
-        self.analyzer = ValueAnalyzer(self.predictor)
+        
+        # These will be initialized in the background thread to avoid blocking the UI
+        self.fetcher = None
+        self.predictor = None
+        self.analyzer = None
         
         # Default settings for background scan
         self.bankroll = 100000
@@ -47,7 +49,17 @@ class BackgroundAnalyzer(threading.Thread):
 
     def run(self):
         self.running = True
-        print("[BackgroundWorker] Thread started.")
+        print("[BackgroundWorker] Thread started. Initializing heavy components in background...")
+        try:
+            self.fetcher = HistoricalDataFetcher()
+            self.predictor = Predictor(self.fetcher)
+            self.analyzer = ValueAnalyzer(self.predictor)
+            print("[BackgroundWorker] Heavy components initialized successfully.")
+        except Exception as e:
+            print(f"[BackgroundWorker] FAILED to initialize components: {e}")
+            self.running = False
+            return
+
         while self.running:
             try:
                 self.perform_scan()
@@ -58,6 +70,9 @@ class BackgroundAnalyzer(threading.Thread):
             time.sleep(self.interval)
 
     def perform_scan(self):
+        if not self.analyzer:
+            return
+            
         print(f"[BackgroundWorker] Starting analysis cycle at {datetime.now()}...")
         
         # 1. Fetch Bulletin

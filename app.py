@@ -60,12 +60,11 @@ with tab1:
     
     # 🕒 Load from Background Scan
     latest_scan = get_latest_scan()
-    if latest_scan and 'bulten' not in latest_scan.get('bulten', []):
+    if latest_scan and 'bulten' in latest_scan and latest_scan['bulten']:
         if st.button("Otomatik Tarama Bültenini Yükle", use_container_width=True):
-            if 'bulten' in latest_scan and latest_scan['bulten']:
-                st.session_state['bulten'] = pd.DataFrame(latest_scan['bulten'])
-                st.success(f"Otomatik taramadan ({latest_scan['last_scan']}) {len(st.session_state['bulten'])} maç yüklendi.")
-                st.rerun()
+            st.session_state['bulten'] = pd.DataFrame(latest_scan['bulten'])
+            st.success(f"Otomatik taramadan ({latest_scan['last_scan']}) {len(st.session_state['bulten'])} maç yüklendi.")
+            st.rerun()
 
     if st.button("Bülteni Çek (Manuel)", type="primary"):
         with st.spinner("Bülten indiriliyor..."):
@@ -227,10 +226,17 @@ with tab2:
                 index=0
             )
             
-            # Prepare numeric columns for sorting
+            # Prepare numeric columns for sorting with safety checks
             df_display = df.copy()
-            df_display['Edge_Val'] = df_display['Edge'].str.rstrip('%').astype(float)
-            df_display['Kelly_Val'] = df_display['Kelly_Bahis'].str.replace(',', '').astype(float)
+            if 'Edge' in df_display.columns:
+                df_display['Edge_Val'] = df_display['Edge'].apply(lambda x: float(str(x).rstrip('%')) if isinstance(x, str) else float(x))
+            else:
+                df_display['Edge_Val'] = 0.0
+
+            if 'Kelly_Bahis' in df_display.columns:
+                df_display['Kelly_Val'] = df_display['Kelly_Bahis'].apply(lambda x: float(str(x).replace(',', '')) if isinstance(x, str) else float(x))
+            else:
+                df_display['Kelly_Val'] = 0.0
             
             if sort_by == "Beklenen Kâr (Edge) - Azalan":
                 df_display = df_display.sort_values(by='Edge_Val', ascending=False)
