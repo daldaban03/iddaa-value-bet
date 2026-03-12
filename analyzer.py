@@ -27,7 +27,7 @@ class ValueAnalyzer:
         kelly = (b * prob - q) / b
         return max(0.0, kelly * fraction)
 
-    def analyze_fixtures(self, bulten_df, min_edge=0.05, bankroll=100000):
+    def analyze_fixtures(self, bulten_df, min_edge=0.05, bankroll=100000, kelly_fraction=0.5):
         """
         Analyzes a DataFrame of fixtures and returns a DataFrame containing
         Value Bets (cases where EV > min_edge).
@@ -81,7 +81,7 @@ class ValueAnalyzer:
             # Check Home Win (1)
             ev_1 = self.calculate_expected_value(probs['1'], row['Odds_1'])
             if ev_1 >= min_edge:
-                kelly_f = self.kelly_fraction(probs['1'], row['Odds_1'])
+                kelly_f = self.kelly_fraction(probs['1'], row['Odds_1'], fraction=kelly_fraction)
                 kelly_bet = round(bankroll * kelly_f, 0)
                 results.append(self._create_result_row(
                     row, '1 (Ev Sahibi)', probs['1'], row['Odds_1'], ev_1,
@@ -93,7 +93,7 @@ class ValueAnalyzer:
             # Check Draw (X)
             ev_x = self.calculate_expected_value(probs['X'], row['Odds_X'])
             if ev_x >= min_edge:
-                kelly_f = self.kelly_fraction(probs['X'], row['Odds_X'])
+                kelly_f = self.kelly_fraction(probs['X'], row['Odds_X'], fraction=kelly_fraction)
                 kelly_bet = round(bankroll * kelly_f, 0)
                 results.append(self._create_result_row(
                     row, 'X (Beraberlik)', probs['X'], row['Odds_X'], ev_x,
@@ -105,7 +105,7 @@ class ValueAnalyzer:
             # Check Away Win (2)
             ev_2 = self.calculate_expected_value(probs['2'], row['Odds_2'])
             if ev_2 >= min_edge:
-                kelly_f = self.kelly_fraction(probs['2'], row['Odds_2'])
+                kelly_f = self.kelly_fraction(probs['2'], row['Odds_2'], fraction=kelly_fraction)
                 kelly_bet = round(bankroll * kelly_f, 0)
                 results.append(self._create_result_row(
                     row, '2 (Deplasman)', probs['2'], row['Odds_2'], ev_2,
