@@ -53,10 +53,27 @@ with st.sidebar:
     st.info("Bu araç, Elo + Form + Sakatlık verilerini harmanlayarak matematiksel değer tespiti yapar.")
 
 # 📑 Main Navigation Tabs
-tab1, tab2, tab3 = st.tabs(["📁 Günlük Bülten", "🤖 AI Analiz & Kupon", "📈 Performans"])
+tab1, tab2, tab3 = st.tabs(["📊 Günlük Bülten", "🤖 AI Analiz & Kupon", "📈 Performans"])
 
 with tab1:
-    st.header("1. Günlük Bülten")
+    st.header("📅 Günlük Maç Bülteni")
+    
+    # UI: Clear session state button
+    if 'bulten' in st.session_state:
+        if st.button("🗑️ Bülteni Temizle", use_container_width=False):
+            del st.session_state['bulten']
+            st.rerun()
+
+    # 🕒 Search in Bulletin
+    if 'bulten' in st.session_state:
+        b_search = st.text_input("🔍 Bülten İçinde Ara", placeholder="Takım ismi girin...")
+        display_bulten = st.session_state['bulten']
+        if b_search:
+            display_bulten = display_bulten[
+                display_bulten['Home_Team'].str.contains(b_search, case=False, na=False) |
+                display_bulten['Away_Team'].str.contains(b_search, case=False, na=False)
+            ]
+        st.dataframe(display_bulten, use_container_width=True, hide_index=True)
     
     # 🕒 Load from Background Scan
     latest_scan = get_latest_scan()
@@ -77,8 +94,7 @@ with tab1:
             except Exception as e:
                 st.error(f"Hata: {e}")
 
-    if 'bulten' in st.session_state:
-        st.dataframe(st.session_state['bulten'], use_container_width=True)
+    pass # Bulletin is already displayed in the search section above
 
 with tab2:
     st.header("2. AI Analiz & Kupon")
@@ -144,87 +160,123 @@ with tab2:
             # Premium Glassmorphism Styling
             st.markdown("""
                 <style>
+                /* Google Fonts - Inter & Outfit */
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@500;800&display=swap');
+                
+                html, body, [class*="st-"] {
+                    font-family: 'Inter', sans-serif;
+                }
+                
+                h1, h2, h3, .match-title {
+                    font-family: 'Outfit', sans-serif;
+                }
+
                 .match-card {
-                    background: rgba(255, 255, 255, 0.05);
+                    background: rgba(30, 41, 59, 0.7);
+                    backdrop-filter: blur(10px);
                     border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
-                    padding: 20px;
-                    margin-bottom: 20px;
-                    border-left: 6px solid #00d2ff;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-                    transition: transform 0.2s;
-                    color: inherit;
+                    border-radius: 16px;
+                    padding: 24px;
+                    margin-bottom: 24px;
+                    border-left: 8px solid #38bdf8; /* Cyan */
+                    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .match-card:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+                    transform: scale(1.02);
+                    border-left: 8px solid #facc15; /* Gold on hover */
+                    background: rgba(30, 41, 59, 0.9);
                 }
                 .match-header {
                     display: flex;
                     justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 15px;
+                    align-items: flex-start;
+                    margin-bottom: 20px;
                 }
                 .match-title {
-                    font-size: 20px;
+                    font-size: 22px;
                     font-weight: 800;
-                    letter-spacing: -0.5px;
+                    color: #f8fafc;
+                    line-height: 1.2;
+                    margin-right: 10px;
                 }
                 .prediction-badge {
-                    background: #2ecc71;
+                    background: linear-gradient(135deg, #10b981, #059669); /* Emerald */
                     color: white;
-                    padding: 4px 12px;
-                    border-radius: 20px;
-                    font-size: 14px;
-                    font-weight: bold;
+                    padding: 6px 16px;
+                    border-radius: 99px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
                 }
                 .stats-grid {
                     display: grid;
                     grid-template-columns: repeat(2, 1fr);
-                    gap: 15px;
-                    margin-top: 15px;
+                    gap: 20px;
+                    margin-top: 20px;
+                    padding: 15px;
+                    background: rgba(15, 23, 42, 0.6);
+                    border-radius: 12px;
                 }
                 .metric-item {
                     display: flex;
                     flex-direction: column;
                 }
                 .metric-label {
-                    font-size: 11px;
+                    font-size: 10px;
                     text-transform: uppercase;
-                    letter-spacing: 1px;
-                    opacity: 0.7;
-                    margin-bottom: 4px;
+                    font-weight: 700;
+                    color: #94a3b8;
+                    letter-spacing: 1.2px;
+                    margin-bottom: 6px;
                 }
                 .metric-value {
-                    font-size: 18px;
-                    font-weight: 700;
+                    font-size: 20px;
+                    font-weight: 800;
+                    color: #f1f5f9;
                 }
                 .kelly-section {
-                    background: rgba(0, 210, 255, 0.1);
-                    border: 1px dashed rgba(0, 210, 255, 0.3);
-                    border-radius: 8px;
-                    padding: 12px;
-                    margin-top: 15px;
+                    margin-top: 20px;
+                    padding: 16px;
+                    background: linear-gradient(135deg, rgba(250, 204, 21, 0.1), rgba(250, 204, 21, 0.2));
+                    border: 1px solid rgba(250, 204, 21, 0.3);
+                    border-radius: 12px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                 }
                 .kelly-amount {
-                    color: #00d2ff;
-                    font-size: 22px;
+                    font-size: 24px;
                     font-weight: 900;
+                    color: #facc15;
+                    text-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
+                }
+                .date-badge {
+                    font-size: 12px;
+                    color: #94a3b8;
+                    margin-top: 5px;
                 }
                 </style>
             """, unsafe_allow_html=True)
 
             st.success(f"**{len(df)}** adet Değerli Bahis (Value Bet) bulundu!")
             
-            # Sorting Options
-            sort_by = st.selectbox(
-                "Sıralama Kriteri:",
-                ["Beklenen Kâr (Edge) - Azalan", "Tarih - En Yakın", "Kelly Yatırım - Azalan", "Tarih - En Uzak"],
-                index=0
-            )
+            # UX: Search and Filter
+            col_s1, col_s2 = st.columns([2, 1])
+            with col_s1:
+                search_query = st.text_input("🔍 Maç veya Takım Ara", placeholder="Örn: Galatasaray, Premier League...")
+            with col_s2:
+                sort_by = st.selectbox(
+                    "Sıralama",
+                    ["Beklenen Kâr (Edge) - Azalan", "Tarih - En Yakın", "Kelly Yatırımı - Azalan"],
+                    index=0
+                )
+            
+            # Application of search filter
+            if search_query:
+                df = df[df['Match'].str.contains(search_query, case=False, na=False)]
             
             # Prepare numeric columns for sorting with safety checks
             df_display = df.copy()
