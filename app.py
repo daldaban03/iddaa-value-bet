@@ -240,6 +240,7 @@ with tab2:
                                 <div class="match-title">⚽ {row['Match']}</div>
                                 <div class="prediction-badge">{row['Prediction']}</div>
                             </div>
+                            <div style="font-size: 12px; margin-bottom: 10px; opacity: 0.8;">📅 Tarih (TSİ): {row['Date']}</div>
                             <div class="stats-grid">
                                 <div class="metric-item">
                                     <div class="metric-label">AI Olasılık</div>
