@@ -6,6 +6,17 @@ from predictor import Predictor
 from analyzer import ValueAnalyzer
 from utils.persistence import save_predictions
 from performance_ui import render_performance_tab
+from utils.background_worker import BackgroundAnalyzer, get_latest_scan
+
+# 🕒 Start Background Automation
+@st.cache_resource
+def start_automation():
+    worker = BackgroundAnalyzer(interval_seconds=900)  # 15 mins
+    if not worker.is_alive():
+        worker.start()
+    return worker
+
+worker = start_automation()
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",
@@ -80,9 +91,18 @@ with tab2:
     )
     st.caption("Not: Bültendeki oranların şirket kâr marjını yenmesi için en az %5 seçilmesi daha risksizdir.")
 
+    # 🕒 Automation Status
+    latest_scan = get_latest_scan()
+    if latest_scan:
+        st.info(f"🕒 Otomatik Tarama Aktif: Son tarama {latest_scan['last_scan']} tarihinde yapıldı.")
+        if 'value_bets' not in st.session_state and not st.session_state.get('is_analyzing', False):
+            if st.button("Otomatik Tarama Sonuçlarını Yükle", use_container_width=True):
+                st.session_state['value_bets'] = pd.DataFrame(latest_scan['predictions'])
+                st.rerun()
+
     if 'bulten' in st.session_state:
         # Button only triggers the rerun
-        if st.button("Yapay Zeka ile Analiz Et", type="primary", disabled=st.session_state['is_analyzing']):
+        if st.button("Yapay Zeka ile Analiz Et (Manuel)", type="primary", disabled=st.session_state['is_analyzing']):
             st.session_state['start_analysis'] = True
             st.rerun()
             
