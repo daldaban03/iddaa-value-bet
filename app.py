@@ -110,14 +110,68 @@ with tab2:
     if 'value_bets' in st.session_state:
         df = st.session_state['value_bets']
         if not df.empty:
+            # Premium Styling CSS
+            st.markdown("""
+                <style>
+                .match-card {
+                    background-color: #f0f2f6;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin-bottom: 15px;
+                    border-left: 5px solid #2ecc71;
+                    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+                }
+                .match-title {
+                    font-size: 18px;
+                    font-weight: bold;
+                    color: #2c3e50;
+                }
+                .metric-label {
+                    font-size: 12px;
+                    color: #7f8c8d;
+                }
+                .metric-value {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #27ae60;
+                }
+                </style>
+            """, unsafe_content_safe=True)
+
             st.success(f"**{len(df)}** adet Değerli Bahis (Value Bet) bulundu!")
             
-            # Ana tablo
-            display_cols = ['Date', 'Match', 'Veri_Kalitesi', 'Prediction', 'AI_Probability', 'Iddaa_Odds', 
-                           'Edge', 'Ev_Eksik', 'Dep_Eksik', 'Kelly_Pct', 'Kelly_Bahis']
-            available_cols = [c for c in display_cols if c in df.columns]
-            st.dataframe(df[available_cols], use_container_width=True)
-            
+            # Display Results as Cards instead of DataFrame for mobile
+            for idx, row in df.iterrows():
+                with st.container():
+                    # Custom HTML for Card
+                    st.markdown(f"""
+                        <div class="match-card">
+                            <div class="match-title">⚽ {row['Match']}</div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                                <div>
+                                    <div class="metric-label">Tahmin</div>
+                                    <div class="metric-value" style="color: #2980b9;">{row['Prediction']}</div>
+                                </div>
+                                <div>
+                                    <div class="metric-label">AI Olasılık</div>
+                                    <div class="metric-value">{row['AI_Probability']}</div>
+                                </div>
+                                <div>
+                                    <div class="metric-label">Iddaa Oran</div>
+                                    <div class="metric-value">{row['Iddaa_Odds']}</div>
+                                </div>
+                                <div>
+                                    <div class="metric-label">Edge</div>
+                                    <div class="metric-value" style="color: #e67e22;">{row['Edge']}</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 13px;">
+                                🏥 Eksikler: Ev {row['Ev_Eksik']} | Dep {row['Dep_Eksik']} | 
+                                💰 Önerilen: <b>{row['Kelly_Bahis']} TL</b> ({row['Kelly_Pct']})
+                            </div>
+                        </div>
+                    """, unsafe_content_safe=True)
+
             # AI Düşünce paneli
             if 'Explanation' in df.columns:
                 with st.expander("🤖 Yapay Zeka Nasıl Düşündü?"):
