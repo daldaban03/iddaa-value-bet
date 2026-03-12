@@ -239,6 +239,11 @@ with tab2:
                     st.metric("Yatırım", system_coupon['formatted_stake'])
                 with r4:
                     st.metric("Potansiyel Kazanç", f"{system_coupon['potential_win']:,.0f} TL")
+                
+                # Show matches in system coupon
+                with st.expander("Maç Listesi"):
+                    for leg in system_coupon['legs']:
+                        st.markdown(f"⚽ **{leg['match']}** - Tahmin: `{leg['prediction']}` | Oran: {leg['odds']}")
         else:
             st.warning("Değerli bahis bulunamadı.")
     else:
