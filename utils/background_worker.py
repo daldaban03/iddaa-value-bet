@@ -42,7 +42,7 @@ class BackgroundAnalyzer(threading.Thread):
         
         # Default settings for background scan
         self.bankroll = 100000
-        self.min_edge = 0.05
+        self.min_edge = 0.15
         self.risk_fraction = 0.5
         
         self._initialized = True

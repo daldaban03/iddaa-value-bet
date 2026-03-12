@@ -111,10 +111,10 @@ with tab2:
     # Kullanıcıya güvenli marj (Edge) seçtirme şansı verelim
     min_edge_pct = st.slider(
         "Minimum Beklenen Kâr (Edge) Oranı %", 
-        min_value=0.0, max_value=30.0, value=5.0, step=1.0,
+        min_value=0.0, max_value=30.0, value=15.0, step=1.0,
         disabled=st.session_state['is_analyzing']
     )
-    st.caption("Not: Bültendeki oranların şirket kâr marjını yenmesi için en az %5 seçilmesi daha risksizdir.")
+    st.caption("Not: Bültendeki oranların şirket kâr marjını yenmesi için en az %15 seçilmesi daha risksizdir.")
 
     # 🕒 Automation Status
     latest_scan = get_latest_scan()
