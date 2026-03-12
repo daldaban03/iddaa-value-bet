@@ -209,16 +209,27 @@ class ValueAnalyzer:
         
         return singles, system_coupon, total_stake
 
+    QUALITY_EXPLANATIONS = {
+        'Elo_Ikincil_veya_Tahmini': "Resmi ClubElo verisi bulunamadı; lig ortalaması veya geçmiş verilere dayalı tahmini reyting kullanıldı.",
+        'Istatistik_Eksik_veya_Tahmini': "Güncel lig istatistiklerine (form/momentum) tam ulaşılamadı; AI modeli kısıtlı tahlil yapabildi.",
+        'Sakatlik_Ikincil_veya_Yok': "Transfermarkt sakatlık verilerine erişilemedi; kadro etkisi piyasa verisi yerine sabit oranla hesaplandı."
+    }
+
     def _create_result_row(self, fixture_row, prediction_type, prob, odds, ev,
                            home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                            home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
                            kelly_f, kelly_bet, reliability, r_flags):
         
         rel_icon = "🟢 Yüksek" if reliability == "High" else ("🟡 Orta" if reliability == "Medium" else "🔴 Düşük")
-        flags_str = ", ".join(r_flags) if r_flags else "Tümü Orijinal Kaynak"
+        
+        # Build detailed reason string
+        reason_list = [self.QUALITY_EXPLANATIONS.get(f, f) for f in r_flags]
+        flags_str = " | ".join(reason_list) if reason_list else "Tümü Orijinal Kaynak (ClubElo, Football-Data, Transfermarkt)"
+        
+        quality_detail = f"\n> Sebep: {flags_str}" if reliability != "High" else ""
         
         explanation = (
-            f"[Veri Kalitesi]: {rel_icon} ({flags_str})\n\n"
+            f"[Veri Kalitesi]: {rel_icon}{quality_detail}\n\n"
             f"[Adim 1 - Poisson xG Modeli] Lig istatistiklerinden hesaplanan beklenen gol (xG): "
             f"{fixture_row['Home_Team']}: {home_xg} gol / {fixture_row['Away_Team']}: {away_xg} gol.\n\n"
             f"[Adim 2 - Yapay Zeka (Poisson + XGBoost/MLP + Elo)] '{fixture_row['Home_Team']}' (Elo: {home_elo}, Form: {home_form}/1.0, Ivme: {home_mom}) ve "
