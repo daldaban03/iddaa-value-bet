@@ -1,0 +1,23 @@
+# Iddaa Value Bet AI - Core Instructions
+
+Welcome. This workspace is enhanced with **Antigravity Superpowers**. 
+
+## Global Rules
+- ALWAYS check `.agent/AGENTS.md` for role definitions and tool usage.
+- FOLLOW the "Single-Flow Execution Model" defined in `.agent/AGENTS.md`.
+- USE the local skills in `.agent/skills/` for brainstorm, planning, and execution.
+- TRACK progress in `.artifact/task.md` (for the current session) and reference `docs/plans/task.md` for long-term project state.
+- ALL automated analysis scans are handled by `utils/background_worker.py`.
+
+## Core Project Context
+- **Main App**: `app.py` (Streamlit UI)
+- **Engine**: `analyzer.py` (Value analysis logic), `predictor.py` (AI Model), `data_fetcher.py` (Multi-source data fetching).
+- **Automation**: `utils/background_worker.py` (Runs every 15 mins).
+- **Data**: `data/latest_scan.json` (Cache).
+
+## Skills & Workflows
+- Available Workflows: `.agent/workflows/`
+- Available Skills: `.agent/skills/`
+
+## How to Proceed
+At the start of any new conversation, summarize the existing `.agent/AGENTS.md` and current project state from `PROJECT_CONTEXT.md`.
