@@ -161,8 +161,29 @@ with tab2:
 
             st.success(f"**{len(df)}** adet Değerli Bahis (Value Bet) bulundu!")
             
+            # Sorting Options
+            sort_by = st.selectbox(
+                "Sıralama Kriteri:",
+                ["Beklenen Kâr (Edge) - Azalan", "Tarih - En Yakın", "Kelly Yatırım - Azalan", "Tarih - En Uzak"],
+                index=0
+            )
+            
+            # Prepare numeric columns for sorting
+            df_display = df.copy()
+            df_display['Edge_Val'] = df_display['Edge'].str.rstrip('%').astype(float)
+            df_display['Kelly_Val'] = df_display['Kelly_Bahis'].str.replace(',', '').astype(float)
+            
+            if sort_by == "Beklenen Kâr (Edge) - Azalan":
+                df_display = df_display.sort_values(by='Edge_Val', ascending=False)
+            elif sort_by == "Tarih - En Yakın":
+                df_display = df_display.sort_values(by='Date', ascending=True)
+            elif sort_by == "Kelly Yatırım - Azalan":
+                df_display = df_display.sort_values(by='Kelly_Val', ascending=False)
+            elif sort_by == "Tarih - En Uzak":
+                df_display = df_display.sort_values(by='Date', ascending=False)
+            
             # Display Results as Cards instead of DataFrame for mobile
-            for idx, row in df.iterrows():
+            for idx, row in df_display.iterrows():
                 with st.container():
                     # Custom HTML for Card
                     st.markdown(f"""
