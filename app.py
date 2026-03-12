@@ -4,6 +4,7 @@ from scraper import IddaaScraper
 from data_fetcher import HistoricalDataFetcher
 from predictor import Predictor
 from analyzer import ValueAnalyzer
+from utils.persistence import save_predictions
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",
@@ -95,6 +96,9 @@ with tab2:
                     kelly_fraction=risk_fraction
                 )
                 st.session_state['value_bets'] = value_bets_df
+                
+                # Save predictions for performance tracking
+                save_predictions(value_bets_df, BANKROLL, risk_fraction, min_edge_pct)
         except Exception as e:
             st.error(f"Hata oluştu: {e}")
             import traceback
