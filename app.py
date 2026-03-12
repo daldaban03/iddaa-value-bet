@@ -132,29 +132,78 @@ with tab2:
         df = st.session_state['value_bets']
         if not df.empty:
             # Premium Styling CSS
+            # Premium Glassmorphism Styling
             st.markdown("""
                 <style>
                 .match-card {
-                    background-color: #f0f2f6;
-                    border-radius: 10px;
-                    padding: 15px;
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin-bottom: 20px;
+                    border-left: 6px solid #00d2ff;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                    transition: transform 0.2s;
+                    color: inherit;
+                }
+                .match-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+                }
+                .match-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
                     margin-bottom: 15px;
-                    border-left: 5px solid #2ecc71;
-                    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
                 }
                 .match-title {
-                    font-size: 18px;
+                    font-size: 20px;
+                    font-weight: 800;
+                    letter-spacing: -0.5px;
+                }
+                .prediction-badge {
+                    background: #2ecc71;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 14px;
                     font-weight: bold;
-                    color: #2c3e50;
+                }
+                .stats-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 15px;
+                    margin-top: 15px;
+                }
+                .metric-item {
+                    display: flex;
+                    flex-direction: column;
                 }
                 .metric-label {
-                    font-size: 12px;
-                    color: #7f8c8d;
+                    font-size: 11px;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    opacity: 0.7;
+                    margin-bottom: 4px;
                 }
                 .metric-value {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #27ae60;
+                    font-size: 18px;
+                    font-weight: 700;
+                }
+                .kelly-section {
+                    background: rgba(0, 210, 255, 0.1);
+                    border: 1px dashed rgba(0, 210, 255, 0.3);
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin-top: 15px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .kelly-amount {
+                    color: #00d2ff;
+                    font-size: 22px;
+                    font-weight: 900;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -182,34 +231,39 @@ with tab2:
             elif sort_by == "Tarih - En Uzak":
                 df_display = df_display.sort_values(by='Date', ascending=False)
             
-            # Display Results as Cards instead of DataFrame for mobile
+            # Display Results as Cards
             for idx, row in df_display.iterrows():
                 with st.container():
-                    # Custom HTML for Card
                     st.markdown(f"""
                         <div class="match-card">
-                            <div class="match-title">⚽ {row['Match']}</div>
-                            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                                <div>
-                                    <div class="metric-label">Tahmin</div>
-                                    <div class="metric-value" style="color: #2980b9;">{row['Prediction']}</div>
-                                </div>
-                                <div>
+                            <div class="match-header">
+                                <div class="match-title">⚽ {row['Match']}</div>
+                                <div class="prediction-badge">{row['Prediction']}</div>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="metric-item">
                                     <div class="metric-label">AI Olasılık</div>
                                     <div class="metric-value">{row['AI_Probability']}</div>
                                 </div>
-                                <div>
+                                <div class="metric-item">
                                     <div class="metric-label">Iddaa Oran</div>
                                     <div class="metric-value">{row['Iddaa_Odds']}</div>
                                 </div>
-                                <div>
-                                    <div class="metric-label">Edge</div>
+                                <div class="metric-item">
+                                    <div class="metric-label">Avantaj (Edge)</div>
                                     <div class="metric-value" style="color: #e67e22;">{row['Edge']}</div>
                                 </div>
+                                <div class="metric-item">
+                                    <div class="metric-label">Sakat/Cezalı</div>
+                                    <div class="metric-value">Ev {row['Ev_Eksik']} | Dep {row['Dep_Eksik']}</div>
+                                </div>
                             </div>
-                            <div style="margin-top: 10px; font-size: 13px;">
-                                🏥 Eksikler: Ev {row['Ev_Eksik']} | Dep {row['Dep_Eksik']} | 
-                                💰 Önerilen: <b>{row['Kelly_Bahis']} TL</b> ({row['Kelly_Pct']})
+                            <div class="kelly-section">
+                                <div>
+                                    <div class="metric-label">Önerilen Kelly Yatırımı</div>
+                                    <div style="font-size: 12px; opacity: 0.8;">Bankroll Oranı: {row['Kelly_Pct']}</div>
+                                </div>
+                                <div class="kelly-amount">{row['Kelly_Bahis']} TL</div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
