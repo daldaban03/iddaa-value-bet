@@ -135,10 +135,15 @@ class ValueAnalyzer:
         singles = []
         system_legs = []
         total_stake = 0
+        used_matches = set()
         
         for idx, row in value_bets_df.iterrows():
+            match_name = row['Match']
+            if match_name in used_matches:
+                continue
+                
             bet = {
-                'match': row['Match'],
+                'match': match_name,
                 'prediction': row['Prediction'],
                 'odds': row['Iddaa_Odds'],
                 'ai_prob': row['AI_Probability'],
@@ -148,6 +153,8 @@ class ValueAnalyzer:
                 'ev_eksik': row['Ev_Eksik'],
                 'dep_eksik': row['Dep_Eksik'],
             }
+            
+            used_matches.add(match_name)
             
             if len(singles) < max_singles:
                 singles.append(bet)
