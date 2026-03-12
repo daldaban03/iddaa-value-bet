@@ -288,7 +288,7 @@ with tab2:
             # AI Düşünce paneli
             if 'Explanation' in df.columns:
                 with st.expander("🤖 Yapay Zeka Nasıl Düşündü?"):
-                    for idx, row in df.head(5).iterrows():
+                    for idx, row in df.iterrows():
                         st.markdown(f"**{row['Match']} - Tahmin: {row['Prediction']}**")
                         st.info(row['Explanation'])
 
