@@ -57,7 +57,17 @@ tab1, tab2, tab3 = st.tabs(["📁 Günlük Bülten", "🤖 AI Analiz & Kupon", "
 
 with tab1:
     st.header("1. Günlük Bülten")
-    if st.button("Bülteni Çek", type="primary"):
+    
+    # 🕒 Load from Background Scan
+    latest_scan = get_latest_scan()
+    if latest_scan and 'bulten' not in latest_scan.get('bulten', []):
+        if st.button("Otomatik Tarama Bültenini Yükle", use_container_width=True):
+            if 'bulten' in latest_scan and latest_scan['bulten']:
+                st.session_state['bulten'] = pd.DataFrame(latest_scan['bulten'])
+                st.success(f"Otomatik taramadan ({latest_scan['last_scan']}) {len(st.session_state['bulten'])} maç yüklendi.")
+                st.rerun()
+
+    if st.button("Bülteni Çek (Manuel)", type="primary"):
         with st.spinner("Bülten indiriliyor..."):
             try:
                 # Fetch daily data

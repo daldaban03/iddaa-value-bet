@@ -80,7 +80,8 @@ class BackgroundAnalyzer(threading.Thread):
             "last_scan": timestamp,
             "bankroll": self.bankroll,
             "risk_fraction": self.risk_fraction,
-            "predictions": value_bets_df.to_dict(orient="records") if not value_bets_df.empty else []
+            "predictions": value_bets_df.to_dict(orient="records") if not value_bets_df.empty else [],
+            "bulten": bulten_df.to_dict(orient="records") if not bulten_df.empty else []
         }
         
         os.makedirs(os.path.dirname(LATEST_SCAN_PATH), exist_ok=True)
