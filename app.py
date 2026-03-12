@@ -5,6 +5,7 @@ from data_fetcher import HistoricalDataFetcher
 from predictor import Predictor
 from analyzer import ValueAnalyzer
 from utils.persistence import save_predictions
+from performance_ui import render_performance_tab
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",
@@ -224,8 +225,7 @@ with tab2:
         st.info("Analiz için bülteni çektikten sonra butona basınız.")
 
 with tab3:
-    st.header("3. Performans Paneli")
-    st.info("Bu özellik v2.0 kapsamında yakında aktif edilecek. Yaptığınız tüm analizler kaydedilip otomatik doğrulanacak.")
+    render_performance_tab(fetcher)
 
 st.markdown("---")
 st.caption("🚨 Uyarı: Bu sadece matematiksel tahmin ve olasılıkları analiz eden bir araçtır. %100 kesinlik garanti etmez.")
