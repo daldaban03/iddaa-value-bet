@@ -18,7 +18,7 @@ def start_automation(ver="1.5-quality-audit"):
         worker.start()
     return worker
 
-worker = start_automation(ver="1.5-quality-audit")
+worker = start_automation(ver="1.8-mapping-fix")
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",
@@ -81,9 +81,14 @@ def load_modules(ver="1.6-force-reload"):
     val_fetcher = data_fetcher.HistoricalDataFetcher()
     val_predictor = predictor.Predictor(val_fetcher)
     val_analyzer = analyzer.ValueAnalyzer(val_predictor)
+    
+    # Debug: Confirm version in logs
+    print(f"  [System] Modules reloaded (Ver: {ver})")
+    sys.stdout.flush()
+    
     return val_scraper, val_fetcher, val_predictor, val_analyzer
 
-scraper, fetcher, predictor, analyzer = load_modules(ver="1.7-final-check")
+scraper, fetcher, predictor, analyzer = load_modules(ver="1.9-hard-reset")
 
 # ⚙️ Sidebar Settings
 with st.sidebar:
@@ -94,6 +99,11 @@ with st.sidebar:
     st.caption("Not: 0.5 (Half-Kelly) agresif, 0.25 ise daha güvenli bir yöntemdir.")
     st.markdown("---")
     st.info("Bu araç, Elo + Form + Sakatlık verilerini harmanlayarak matematiksel değer tespiti yapar.")
+    
+    if st.button("🔄 Sistemi Sıfırla (Cache Clear)", use_container_width=True):
+        st.cache_resource.clear()
+        st.cache_data.clear()
+        st.rerun()
 
 # 📑 Main Navigation Tabs
 tab1, tab2, tab3 = st.tabs(["📊 Günlük Bülten", "🤖 AI Analiz & Kupon", "📈 Performans"])
