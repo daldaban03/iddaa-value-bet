@@ -371,6 +371,10 @@ with tab2:
                                     <div class="metric-label">Sakat/Cezalı</div>
                                     <div class="metric-value">Ev {row['Ev_Eksik']} | Dep {row['Dep_Eksik']}</div>
                                 </div>
+                                <div class="metric-item">
+                                    <div class="metric-label">Veri Kalitesi</div>
+                                    <div class="metric-value">{row['Veri_Kalitesi']}</div>
+                                </div>
                             </div>
                             <div class="kelly-section">
                                 <div>
@@ -408,7 +412,7 @@ with tab2:
                         c1, c2, c3 = st.columns([3, 1, 1])
                         with c1:
                             st.markdown(f"**{i}. {bet['match']}**")
-                            st.caption(f"Tahmin: {bet['prediction']} | AI: {bet['ai_prob']} | Edge: {bet['edge']}")
+                            st.caption(f"Tahmin: {bet['prediction']} | AI: {bet['ai_prob']} | Edge: {bet['edge']} | Veri: {bet['quality']}")
                         with c2:
                             st.metric("Oran", f"{bet['odds']:.2f}")
                         with c3:
@@ -432,7 +436,7 @@ with tab2:
                 # Show matches in system coupon
                 with st.expander("Maç Listesi"):
                     for leg in system_coupon['legs']:
-                        st.markdown(f"⚽ **{leg['match']}** - Tahmin: `{leg['prediction']}` | Oran: {leg['odds']}")
+                        st.markdown(f"⚽ **{leg['match']}** - Tahmin: `{leg['prediction']}` | Oran: {leg['odds']} | Veri: {leg['quality']}")
         else:
             st.warning("Değerli bahis bulunamadı.")
     else:
