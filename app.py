@@ -7,6 +7,8 @@ import scraper
 import data_fetcher
 import predictor
 import analyzer
+import performance_ui
+import utils.persistence as persistence
 
 # 🕒 Start Background Automation
 @st.cache_resource
@@ -462,7 +464,7 @@ with tab2:
             st.info("Analiz sonuçlarını görmek için 'AI ile Analiz Et' butonuna basınız.")
 
 with tab3:
-    render_performance_tab(fetcher)
+    performance_ui.render_performance_tab(fetcher)
 
 st.markdown("---")
 st.caption("🚨 Uyarı: Bu sadece matematiksel tahmin ve olasılıkları analiz eden bir araçtır. %100 kesinlik garanti etmez.")
