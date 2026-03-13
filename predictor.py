@@ -415,6 +415,11 @@ class Predictor:
         else:
             reliability = 'High'
             
+        # Combine audit for UI
+        audit_trail = []
+        audit_trail.append(f"🏠 {home_team}: " + " | ".join(h_dq.get('audit', [])))
+        audit_trail.append(f"🚌 {away_team}: " + " | ".join(a_dq.get('audit', [])))
+        
         ret_dict['Reliability'] = reliability
         ret_dict['Reliability_Flags'] = flags
         ret_dict['Reliability_Audit'] = audit_trail
