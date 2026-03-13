@@ -11,13 +11,13 @@ from utils.background_worker import BackgroundAnalyzer, get_latest_scan
 
 # 🕒 Start Background Automation
 @st.cache_resource
-def start_automation():
+def start_automation(ver="1.2-trt"):
     worker = BackgroundAnalyzer(interval_seconds=900)  # 15 mins
     if not worker.is_alive():
         worker.start()
     return worker
 
-worker = start_automation()
+worker = start_automation(ver="1.2-trt")
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",

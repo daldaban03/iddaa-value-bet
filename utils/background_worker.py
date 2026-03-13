@@ -49,7 +49,7 @@ class BackgroundAnalyzer(threading.Thread):
 
     def run(self):
         self.running = True
-        print("[BackgroundWorker] Thread started. Initializing heavy components in background...")
+        print("[BackgroundWorker] Thread started (v1.2-TRT). Initializing heavy components in background...")
         try:
             self.fetcher = HistoricalDataFetcher()
             self.predictor = Predictor(self.fetcher)
