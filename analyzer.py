@@ -75,7 +75,7 @@ class ValueAnalyzer:
             h_inj_count = len(h_miss_strs)
             a_inj_count = len(a_miss_strs)
             
-            reliability = probs.get('Reliability', 'Low')
+            rel_level = probs.get('Reliability', 'Low')
             r_flags = probs.get('Reliability_Flags', [])
             r_audit = probs.get('Reliability_Audit', [])
             
@@ -225,15 +225,15 @@ class ValueAnalyzer:
     def _create_result_row(self, fixture_row, prediction_type, prob, odds, ev,
                            home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                            home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                           kelly_f, kelly_bet, reliability, r_flags, r_audit):
+                           kelly_f, kelly_bet, rel_level, r_flags, r_audit):
         
-        rel_icon = "🟢 Yüksek" if reliability == "High" else ("🟡 Orta" if reliability == "Medium" else "🔴 Düşük")
+        rel_icon = "🟢 Yüksek" if rel_level == "High" else ("🟡 Orta" if rel_level == "Medium" else "🔴 Düşük")
         
         # Build detailed reason string
         reason_list = [self.QUALITY_EXPLANATIONS.get(f, f) for f in r_flags]
         flags_str = " | ".join(reason_list) if reason_list else "Tümü Orijinal Kaynak (ClubElo, Football-Data, Transfermarkt)"
         
-        quality_detail = f"\n> Sebep: {flags_str}" if reliability != "High" else ""
+        quality_detail = f"\n> Sebep: {flags_str}" if rel_level != "High" else ""
         
         explanation = (
             f"[Veri Kalitesi]: {rel_icon}{quality_detail}\n\n"

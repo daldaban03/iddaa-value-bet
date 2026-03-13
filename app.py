@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta, timezone
-from scraper import IddaaScraper
-from data_fetcher import HistoricalDataFetcher
-from predictor import Predictor
-from analyzer import ValueAnalyzer
-from utils.persistence import save_predictions
-from performance_ui import render_performance_tab
 from utils.background_worker import BackgroundAnalyzer, get_latest_scan
+import importlib
+import scraper
+import data_fetcher
+import predictor
+import analyzer
 
 # 🕒 Start Background Automation
 @st.cache_resource
@@ -69,13 +68,18 @@ Bu araç, seçili maçların **Yapay Zeka** modeli (Elo + Form + Transfermarkt S
 
 # Initialize modules once and cache them for the entire server session
 @st.cache_resource
-def load_modules(ver="1.5-quality-audit"):
-    # Cache buster v3: Force reload of classes to fix AttributeError
-    scraper = IddaaScraper()
-    fetcher = HistoricalDataFetcher()
-    predictor = Predictor(fetcher)
-    analyzer = ValueAnalyzer(predictor)
-    return scraper, fetcher, predictor, analyzer
+def load_modules(ver="1.6-force-reload"):
+    # Force reload modules to pick up file changes on Streamlit Cloud
+    importlib.reload(scraper)
+    importlib.reload(data_fetcher)
+    importlib.reload(predictor)
+    importlib.reload(analyzer)
+    
+    val_scraper = scraper.IddaaScraper()
+    val_fetcher = data_fetcher.HistoricalDataFetcher()
+    val_predictor = predictor.Predictor(val_fetcher)
+    val_analyzer = analyzer.ValueAnalyzer(val_predictor)
+    return val_scraper, val_fetcher, val_predictor, val_analyzer
 
 scraper, fetcher, predictor, analyzer = load_modules(ver="1.3-quality")
 

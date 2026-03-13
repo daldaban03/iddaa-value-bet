@@ -409,18 +409,18 @@ class Predictor:
         flags = list(set(flags))
         
         if is_low:
-            reliability = 'Low'
+            rel_level = 'Low'
         elif is_medium:
-            reliability = 'Medium'
+            rel_level = 'Medium'
         else:
-            reliability = 'High'
+            rel_level = 'High'
             
         # Combine audit for UI
         audit_trail = []
         audit_trail.append(f"🏠 {home_team}: " + " | ".join(h_dq.get('audit', [])))
         audit_trail.append(f"🚌 {away_team}: " + " | ".join(a_dq.get('audit', [])))
         
-        ret_dict['Reliability'] = reliability
+        ret_dict['Reliability'] = rel_level
         ret_dict['Reliability_Flags'] = flags
         ret_dict['Reliability_Audit'] = audit_trail
 
