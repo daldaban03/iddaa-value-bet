@@ -32,6 +32,38 @@ class HistoricalDataFetcher:
     TRAINING_LEAGUES = ['E0', 'SP1', 'I1', 'D1', 'F1']
     TRAINING_SEASONS = ['2122', '2223', '2324', '2425']
 
+    # 🔗 Robust Mapping Dictionary (Iddaa/Normalized -> Source Canonical)
+    # This helps when normalization alone isn't enough.
+    KNOWN_TEAM_MAPPINGS = {
+        'newcastleunited': 'Newcastle',
+        'manchesterunited': 'Man United',
+        'manchestercity': 'Man City',
+        'realmadrid': 'Real Madrid',
+        'bayernmunih': 'Bayern Munich',
+        'acmilan': 'AC Milan',
+        'inter': 'Inter',
+        'atleticomadrid': 'Ath Madrid',
+        'psg': 'PSG',
+        'parissaintgermain': 'PSG',
+        'tottenhamhotspur': 'Tottenham',
+        'leicestercity': 'Leicester',
+        'wolverhamptonwanderers': 'Wolves',
+        'brightonhovealbion': 'Brighton',
+        'nottinghamforest': 'Nott\'m Forest',
+        'westhamunited': 'West Ham',
+        'sheffieldunited': 'Sheffield United',
+        'athleticbilbao': 'Ath Bilbao',
+        'realsociedad': 'Real Sociedad',
+        'realbetis': 'Betis',
+        'celtavigo': 'Celta',
+        'espanyol': 'Espanol',
+        'alaves': 'Alaves',
+        'leganes': 'Leganes',
+        'rayovallecano': 'Rayo Vallecano',
+        'hellasverona': 'Verona',
+        'internazionale': 'Inter',
+    }
+
     def __init__(self):
         self.session = requests.Session()
         # Add retry strategy to handle flaky connections
@@ -74,11 +106,22 @@ class HistoricalDataFetcher:
     # ═══════════════════════════════════════════════
 
     def _norm_name(self, s):
-        s = unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('utf-8')
+        if not s: return ""
+        # Remove accents and normalize to NFD
+        s = unicodedata.normalize('NFD', str(s)).encode('ascii', 'ignore').decode('utf-8')
         s = s.lower().strip()
-        for suf in [' sk', ' jk', ' fk', ' a.s.', ' fc', ' sc', ' cf', ' afc']:
+        # Remove common fluff
+        for suf in [' sk', ' jk', ' fk', ' a.s.', ' fc', ' sc', ' cf', ' afc', ' utd', ' united', ' city', ' hotspur', ' club']:
             s = s.replace(suf, '')
-        return s.replace(' ', '')
+        # Remove punctuation and spaces
+        import re
+        s = re.sub(r'[^a-z0-9]', '', s)
+        return s
+
+    def _get_canonical_mapping(self, team_name):
+        """Returns the canonical name if mapped, otherwise the normalized input."""
+        norm = self._norm_name(team_name)
+        return self.KNOWN_TEAM_MAPPINGS.get(norm, norm)
 
     def _normalize_team_name_elo(self, name):
         name = str(name).strip()
@@ -233,37 +276,46 @@ class HistoricalDataFetcher:
     def _find_team_in_leagues(self, team_name):
         """Lazy search/load of leagues for the specific team."""
         norm_name = self._norm_name(team_name)
+        mapped_name = self._get_canonical_mapping(team_name)
         
-        # Check cache
-        if norm_name in self._team_league_map:
-            l_code, canon = self._team_league_map[norm_name]
-            # Try to get from data cache
-            cache_key = f"{l_code}_{self._current_season}"
-            if cache_key in self._league_data:
-                return l_code, canon, self._league_data[cache_key]
-            # Otherwise fetch
-            return l_code, canon, self._fetch_league_csv(l_code)
+        # 1. Exact match check in cache
+        for n in [norm_name, mapped_name]:
+            if n in self._team_league_map:
+                l_code, canon = self._team_league_map[n]
+                cache_key = f"{l_code}_{self._current_season}"
+                if cache_key in self._league_data:
+                    return l_code, canon, self._league_data[cache_key]
+                return l_code, canon, self._fetch_league_csv(l_code)
 
-        # Iterate and fetch until found
+        # 2. Iterate and fetch leagues
         for code in self.LEAGUE_CODES:
-            # Skip if already failed this run
             target_url = f"https://www.football-data.co.uk/mmz4281/{self._current_season}/{code}.csv"
             if target_url in self._failed_csv_urls:
                 continue
             
-            print(f"  [Fetcher] Searching league: {self.LEAGUE_CODES[code]}...")
-            sys.stdout.flush()
-
             df = self._fetch_league_csv(code)
             if df is not None:
                 current_teams = set(df['HomeTeam'].dropna()) | set(df['AwayTeam'].dropna())
+                # Update maps
                 for t in current_teams:
                     t_norm = self._norm_name(str(t))
                     self._team_league_map[t_norm] = (code, str(t))
                 
-                if norm_name in self._team_league_map:
-                    l_code, canon = self._team_league_map[norm_name]
-                    return l_code, canon, df
+                # Check mapping and exact norm again
+                for target in [norm_name, mapped_name]:
+                    if target in self._team_league_map:
+                        l_code, canon = self._team_league_map[target]
+                        return l_code, canon, df
+                
+                # 3. Fallback: Fuzzy/Substring matching within this league's teams
+                # Only if not found exactly
+                for t in current_teams:
+                    t_norm = self._norm_name(str(t))
+                    # Check if our norm is in their norm or vice versa
+                    if (norm_name in t_norm and len(norm_name) > 3) or (t_norm in norm_name and len(t_norm) > 3):
+                        print(f"  [Fetcher] Fuzzy match found for '{team_name}': {t}")
+                        self._team_league_map[norm_name] = (code, str(t))
+                        return code, str(t), df
         
         return None, None, None
 
