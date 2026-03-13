@@ -304,6 +304,21 @@ with tab2:
                     display: inline-block;
                     margin-bottom: 12px;
                 }
+                
+                /* Expander Styling */
+                .stExpander {
+                    background: rgba(30, 41, 59, 0.4) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                    border-radius: 12px !important;
+                    margin-top: 10px !important;
+                }
+                .stExpander [data-testid="stExpanderToggleIcon"] {
+                    fill: #facc15 !important;
+                }
+                .stExpander p {
+                    font-weight: 600 !important;
+                    color: #f8fafc !important;
+                }
                 </style>
             """, unsafe_allow_html=True)
 
@@ -436,7 +451,7 @@ with tab2:
                     st.metric("Potansiyel Kazanç", f"{system_coupon['potential_win']:,.0f} TL")
                 
                 # Show matches in system coupon
-                with st.expander("Maç Listesi"):
+                with st.expander("📋 Seçilen Maçların Listesi"):
                     for leg in system_coupon['legs']:
                         quality_str = leg.get('quality', '🔴 Bilinmiyor')
                         st.markdown(f"⚽ **{leg['match']}** - Tahmin: `{leg['prediction']}` | Oran: {leg['odds']} | Veri: {quality_str}")
