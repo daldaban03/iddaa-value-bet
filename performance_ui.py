@@ -20,8 +20,8 @@ def verify_results(predictions, fetcher):
         home, away = match_name.split(' vs ')
         
         # Search for teams in league data
-        l_code, h_canon, _ = fetcher._find_team_in_leagues(home)
-        _, a_canon, df = fetcher._find_team_in_leagues(away)
+        l_code, h_canon, _, _ = fetcher._find_team_in_leagues(home)
+        _, a_canon, df, _ = fetcher._find_team_in_leagues(away)
         
         status = "Bekleniyor"
         is_won = None

@@ -438,12 +438,15 @@ class HistoricalDataFetcher:
 
     def get_h2h(self, home_team, away_team):
         """H2H record from CSV data (current + past 3 seasons)."""
-        _, home_c, _ = self._find_team_in_leagues(home_team)
-        _, away_c, _ = self._find_team_in_leagues(away_team)
+        res_h = self._find_team_in_leagues(home_team)
+        res_a = self._find_team_in_leagues(away_team)
+        
+        home_c = res_h[1]
+        away_c = res_a[1]
+        code = res_h[0]
+
         if not home_c or not away_c:
             return {'total': 0}
-
-        code, _, _ = self._find_team_in_leagues(home_team)
         h2h_results = []
 
         seasons_to_check = [self._current_season] + ['2324', '2223', '2122']
