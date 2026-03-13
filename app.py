@@ -11,13 +11,13 @@ from utils.background_worker import BackgroundAnalyzer, get_latest_scan
 
 # 🕒 Start Background Automation
 @st.cache_resource
-def start_automation(ver="1.3-trt-fix"):
+def start_automation(ver="1.4-final-fix"):
     worker = BackgroundAnalyzer(interval_seconds=900)  # 15 mins
     if not worker.is_alive():
         worker.start()
     return worker
 
-worker = start_automation(ver="1.3-trt-fix")
+worker = start_automation(ver="1.4-final-fix")
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",
@@ -31,13 +31,19 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@500;800&display=swap');
     
     /* Global Font System - Selective to avoid icon corruption */
-    .stApp, .stApp p, .stApp span, .stApp label, .stApp button, .stApp input {
+    .stApp, .stApp p, .stApp label, .stApp button, .stApp input {
         font-family: 'Inter', sans-serif;
     }
     
-    /* Ensure icons keep their font/svg behavior */
-    [data-testid*="Icon"], [data-testid*="icon"], svg, .st-key-icon {
-        font-family: inherit !important;
+    /* Targeted font for markdown to avoid span corruption */
+    .stMarkdown p, .stMarkdown li, .stMarkdown div {
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Surgical fix for icons: Force default font to preserve ligatures like _arrow_right */
+    [data-testid*="Icon"], [data-testid*="icon"], svg, .st-key-icon, [class*="st-emotion-cache"] span:empty {
+        font-family: sans-serif !important;
+        font-feature-settings: "liga" 1 !important;
     }
 
     h1, h2, h3, .match-title {
@@ -53,6 +59,7 @@ st.markdown("""
     }
     .stExpander [data-testid="stExpanderToggleIcon"] {
         fill: #facc15 !important;
+        font-family: sans-serif !important; /* Extra protection */
     }
 </style>
 """, unsafe_allow_html=True)
@@ -65,7 +72,7 @@ Bu araç, seçili maçların **Yapay Zeka** modeli (Elo + Form + Transfermarkt S
 
 # Initialize modules once and cache them for the entire server session
 @st.cache_resource
-def load_modules(ver="1.3-quality"):
+def load_modules(ver="1.4-final-fix"):
     # Cache buster v3: Force reload of classes to fix AttributeError
     scraper = IddaaScraper()
     fetcher = HistoricalDataFetcher()
