@@ -47,7 +47,7 @@ class IddaaScraper:
                     match_date_str = today_str
                     if match_time_ms:
                         # Convert timestamp to readable date/time (iddaa sends it in seconds)
-                        match_date_str = datetime.fromtimestamp(match_time_ms).strftime('%Y-%m-%d %H:%M')
+                        match_date_str = datetime.fromtimestamp(match_time_ms, trt).strftime('%Y-%m-%d %H:%M')
                     
                     # Find Match Result market (t: 1, st: 1)
                     match_odds = None
