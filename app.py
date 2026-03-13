@@ -83,7 +83,7 @@ def load_modules(ver="1.6-force-reload"):
     val_analyzer = analyzer.ValueAnalyzer(val_predictor)
     return val_scraper, val_fetcher, val_predictor, val_analyzer
 
-scraper, fetcher, predictor, analyzer = load_modules(ver="1.3-quality")
+scraper, fetcher, predictor, analyzer = load_modules(ver="1.7-final-check")
 
 # ⚙️ Sidebar Settings
 with st.sidebar:

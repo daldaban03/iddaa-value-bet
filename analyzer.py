@@ -88,7 +88,7 @@ class ValueAnalyzer:
                     row, '1 (Ev Sahibi)', probs['1'], row['Odds_1'], ev_1,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet, reliability, r_flags, r_audit
+                    kelly_f, kelly_bet, rel_level, r_flags, r_audit
                 ))
 
             # Check Draw (X)
@@ -100,7 +100,7 @@ class ValueAnalyzer:
                     row, 'X (Beraberlik)', probs['X'], row['Odds_X'], ev_x,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet, reliability, r_flags, r_audit
+                    kelly_f, kelly_bet, rel_level, r_flags, r_audit
                 ))
 
             # Check Away Win (2)
@@ -112,7 +112,7 @@ class ValueAnalyzer:
                     row, '2 (Deplasman)', probs['2'], row['Odds_2'], ev_2,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet, reliability, r_flags, r_audit
+                    kelly_f, kelly_bet, rel_level, r_flags, r_audit
                 ))
 
         # Convert to DataFrame and sort by Expected Value (highest first)
@@ -134,7 +134,7 @@ class ValueAnalyzer:
         """
         Builds an optimal coupon from value bets using Kelly Criterion.
         Returns:
-            singles: list of single bet recommendations
+             singles: list of single bet recommendations
             system_coupon: system coupon recommendation (if applicable)
             total_stake: total amount to stake
         """
