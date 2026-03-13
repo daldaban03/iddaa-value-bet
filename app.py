@@ -33,7 +33,7 @@ Bu araç, seçili maçların **Yapay Zeka** modeli (Elo + Form + Transfermarkt S
 
 # Initialize modules once and cache them for the entire server session
 @st.cache_resource
-def load_modules():
+def load_modules(ver="1.3-quality"):
     # Cache buster v3: Force reload of classes to fix AttributeError
     scraper = IddaaScraper()
     fetcher = HistoricalDataFetcher()
@@ -41,7 +41,7 @@ def load_modules():
     analyzer = ValueAnalyzer(predictor)
     return scraper, fetcher, predictor, analyzer
 
-scraper, fetcher, predictor, analyzer = load_modules()
+scraper, fetcher, predictor, analyzer = load_modules(ver="1.3-quality")
 
 # ⚙️ Sidebar Settings
 with st.sidebar:
@@ -412,7 +412,8 @@ with tab2:
                         c1, c2, c3 = st.columns([3, 1, 1])
                         with c1:
                             st.markdown(f"**{i}. {bet['match']}**")
-                            st.caption(f"Tahmin: {bet['prediction']} | AI: {bet['ai_prob']} | Edge: {bet['edge']} | Veri: {bet['quality']}")
+                            quality_str = bet.get('quality', '🔴 Bilinmiyor')
+                            st.caption(f"Tahmin: {bet['prediction']} | AI: {bet['ai_prob']} | Edge: {bet['edge']} | Veri: {quality_str}")
                         with c2:
                             st.metric("Oran", f"{bet['odds']:.2f}")
                         with c3:
@@ -436,7 +437,8 @@ with tab2:
                 # Show matches in system coupon
                 with st.expander("Maç Listesi"):
                     for leg in system_coupon['legs']:
-                        st.markdown(f"⚽ **{leg['match']}** - Tahmin: `{leg['prediction']}` | Oran: {leg['odds']} | Veri: {leg['quality']}")
+                        quality_str = leg.get('quality', '🔴 Bilinmiyor')
+                        st.markdown(f"⚽ **{leg['match']}** - Tahmin: `{leg['prediction']}` | Oran: {leg['odds']} | Veri: {quality_str}")
         else:
             st.warning("Değerli bahis bulunamadı.")
     else:

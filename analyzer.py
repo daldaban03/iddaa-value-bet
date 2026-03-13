@@ -152,7 +152,7 @@ class ValueAnalyzer:
                 'kelly_pct': row['Kelly_Pct'],
                 'ev_eksik': row['Ev_Eksik'],
                 'dep_eksik': row['Dep_Eksik'],
-                'quality': row['Veri_Kalitesi'],
+                'quality': row.get('Veri_Kalitesi', '🔴 Bilinmiyor'),
             }
             
             used_matches.add(match_name)
