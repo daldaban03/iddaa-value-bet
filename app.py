@@ -218,7 +218,7 @@ with tab2:
                 st.session_state['value_bets'] = value_bets_df
                 
                 # Save predictions for performance tracking
-                save_predictions(value_bets_df, BANKROLL, risk_fraction, min_edge_pct)
+                persistence.save_predictions(value_bets_df, BANKROLL, risk_fraction, min_edge_pct)
         except Exception as e:
             st.error(f"Hata oluştu: {e}")
             import traceback
