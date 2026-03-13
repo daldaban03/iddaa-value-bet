@@ -408,11 +408,13 @@ class Predictor:
         # Remove duplicates
         flags = list(set(flags))
         
-        # Combine audit for UI
-        audit_trail = []
-        audit_trail.append(f"🏠 {home_team}: " + " | ".join(h_dq.get('audit', [])))
-        audit_trail.append(f"🚌 {away_team}: " + " | ".join(a_dq.get('audit', [])))
-        
+        if is_low:
+            reliability = 'Low'
+        elif is_medium:
+            reliability = 'Medium'
+        else:
+            reliability = 'High'
+            
         ret_dict['Reliability'] = reliability
         ret_dict['Reliability_Flags'] = flags
         ret_dict['Reliability_Audit'] = audit_trail
