@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta, timezone
 from utils.background_worker import BackgroundAnalyzer, get_latest_scan
 import importlib
+import sys
 import scraper
 import data_fetcher
 import predictor
