@@ -135,12 +135,10 @@ class ValueAnalyzer:
         singles = []
         system_legs = []
         total_stake = 0
-        used_matches = set()
+        system_used_matches = set()
         
         for idx, row in value_bets_df.iterrows():
             match_name = row['Match']
-            if match_name in used_matches:
-                continue
                 
             bet = {
                 'match': match_name,
@@ -155,16 +153,14 @@ class ValueAnalyzer:
                 'quality': row.get('Veri_Kalitesi', '🔴 Bilinmiyor'),
             }
             
-            used_matches.add(match_name)
-            
             if len(singles) < max_singles:
                 singles.append(bet)
                 total_stake += float(str(bet['kelly_bet']).replace(',', ''))
             
-            # Candidates for system coupon
-            prob_val = float(row['AI_Probability'].replace('%', '')) / 100
-            if len(system_legs) < max_system_legs:
+            # Candidates for system coupon (Must be unique matches)
+            if len(system_legs) < max_system_legs and match_name not in system_used_matches:
                 system_legs.append(bet)
+                system_used_matches.add(match_name)
         
         # Build system coupon if we have enough legs
         system_coupon = None
