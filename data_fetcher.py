@@ -708,13 +708,17 @@ class HistoricalDataFetcher:
         dq = {
             'elo_source': 'ClubElo',
             'stats_source': 'football-data',
-            'injury_source': 'Transfermarkt'
+            'injury_source': 'Transfermarkt',
+            'audit': []
         }
 
         # 1. ClubElo
         elo_score = self._get_elo(team_name)
         if elo_score is None:
             elo_score, dq['elo_source'] = self._get_fallback_elo(team_name)
+            dq['audit'].append(f"ClubElo: {team_name} için veri bulunamadı, {dq['elo_source']} (tahmini) kullanıldı.")
+        else:
+            dq['audit'].append(f"ClubElo: {team_name} için güncel Elo verisi başarıyla çekildi.")
 
         # 2. football-data.co.uk stats
         code, canonical, league_df = self._find_team_in_leagues(team_name)
@@ -722,9 +726,11 @@ class HistoricalDataFetcher:
         if code and canonical and league_df is not None:
             csv_stats = self._compute_team_csv_stats(canonical, league_df)
             league_avg = self._get_league_averages(code)
+            dq['audit'].append(f"football-data: {self.LEAGUE_CODES.get(code, code)} verisi ve takım istatistikleri yüklendi.")
         else:
             # Fallback: Elo-based estimation
             dq['stats_source'] = 'Estimated_from_Elo'
+            dq['audit'].append(f"football-data: Lig/takım verisi bulunamadı ({team_name}). Elo tabanlı istatistik tahmini yapıldı.")
             if elo_score is not None:
                 avg_s = max(0.5, 1.0 + (elo_score - 1300) / 300.0)
                 avg_c = max(0.5, 2.0 - (elo_score - 1300) / 400.0)
@@ -745,8 +751,16 @@ class HistoricalDataFetcher:
 
         # 3. Injuries from Transfermarkt
         injuries = self.get_transfermarkt_injuries(team_name)
-        if injuries is None:
-            injuries, dq['injury_source'] = self._get_fallback_injuries(team_name)
+        if not injuries: # Empty list or None
+            # Only use fallback if it's actually None (error) vs just no injuries found
+            if injuries is None:
+                injuries, dq['injury_source'] = self._get_fallback_injuries(team_name)
+                dq['audit'].append(f"Transfermarkt: Bağlantı hatası veya kaynak bulunamadı. {dq['injury_source']} denendi.")
+            else:
+                dq['audit'].append(f"Transfermarkt: {team_name} için aktif sakatlık kaydı bulunamadı (Veri güncel).")
+        else:
+            dq['audit'].append(f"Transfermarkt: {team_name} için {len(injuries)} sakatlık/eksik verisi işlendi.")
+        
         injury_count = len(injuries) if isinstance(injuries, list) else 0
 
         result = {

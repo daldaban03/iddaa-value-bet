@@ -11,13 +11,13 @@ from utils.background_worker import BackgroundAnalyzer, get_latest_scan
 
 # 🕒 Start Background Automation
 @st.cache_resource
-def start_automation(ver="1.4-final-fix"):
+def start_automation(ver="1.5-quality-audit"):
     worker = BackgroundAnalyzer(interval_seconds=900)  # 15 mins
     if not worker.is_alive():
         worker.start()
     return worker
 
-worker = start_automation(ver="1.4-final-fix")
+worker = start_automation(ver="1.5-quality-audit")
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",
@@ -30,22 +30,11 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@500;800&display=swap');
     
-    /* Global Font System - Selective to avoid icon corruption */
+    /* Simplified Global Font System */
     .stApp, .stApp p, .stApp label, .stApp button, .stApp input {
         font-family: 'Inter', sans-serif;
     }
     
-    /* Targeted font for markdown to avoid span corruption */
-    .stMarkdown p, .stMarkdown li, .stMarkdown div {
-        font-family: 'Inter', sans-serif;
-    }
-
-    /* Surgical fix for icons: Force default font to preserve ligatures like _arrow_right */
-    [data-testid*="Icon"], [data-testid*="icon"], svg, .st-key-icon, [class*="st-emotion-cache"] span:empty {
-        font-family: sans-serif !important;
-        font-feature-settings: "liga" 1 !important;
-    }
-
     h1, h2, h3, .match-title {
         font-family: 'Outfit', sans-serif !important;
     }
@@ -57,9 +46,17 @@ st.markdown("""
         border-radius: 12px !important;
         margin-top: 10px !important;
     }
-    .stExpander [data-testid="stExpanderToggleIcon"] {
-        fill: #facc15 !important;
-        font-family: sans-serif !important; /* Extra protection */
+    
+    /* Audit section styling */
+    .audit-section {
+        margin-top: 15px;
+        padding: 12px;
+        background: rgba(15, 23, 42, 0.4);
+        border-radius: 8px;
+        border-left: 3px solid #64748b;
+        font-size: 12px;
+        color: #94a3b8;
+        line-height: 1.4;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -72,7 +69,7 @@ Bu araç, seçili maçların **Yapay Zeka** modeli (Elo + Form + Transfermarkt S
 
 # Initialize modules once and cache them for the entire server session
 @st.cache_resource
-def load_modules(ver="1.4-final-fix"):
+def load_modules(ver="1.5-quality-audit"):
     # Cache buster v3: Force reload of classes to fix AttributeError
     scraper = IddaaScraper()
     fetcher = HistoricalDataFetcher()
@@ -379,6 +376,10 @@ with tab2:
                                     <div class="metric-value">{row['Veri_Kalitesi']}</div>
                                 </div>
                             </div>
+                            <div class="audit-section">
+                                <b>🔍 Veri Denetimi:</b><br/>
+                                {row['Veri_Detayi'].replace('\n', '<br/>')}
+                            </div>
                             <div class="kelly-section">
                                 <div>
                                     <div class="metric-label" style="color: #fde047;">Önerilen Kelly Yatırımı</div>
@@ -416,7 +417,10 @@ with tab2:
                         with c1:
                             st.markdown(f"**{i}. {bet['match']}**")
                             quality_str = bet.get('quality', '🔴 Bilinmiyor')
+                            audit_str = bet.get('quality_audit', '').replace('\n', ' | ')
                             st.caption(f"Tahmin: {bet['prediction']} | AI: {bet['ai_prob']} | Edge: {bet['edge']} | Veri: {quality_str}")
+                            if audit_str:
+                                st.markdown(f"<div style='font-size: 11px; color: #94a3b8;'>📋 {audit_str}</div>", unsafe_allow_html=True)
                         with c2:
                             st.metric("Oran", f"{bet['odds']:.2f}")
                         with c3:
@@ -441,7 +445,10 @@ with tab2:
                 with st.expander("📋 Seçilen Maçların Listesi"):
                     for leg in system_coupon['legs']:
                         quality_str = leg.get('quality', '🔴 Bilinmiyor')
+                        audit_str = leg.get('quality_audit', '').replace('\n', ' | ')
                         st.markdown(f"⚽ **{leg['match']}** - Tahmin: `{leg['prediction']}` | Oran: {leg['odds']} | Veri: {quality_str}")
+                        if audit_str:
+                            st.markdown(f"<div style='font-size: 11px; color: #94a3b8; margin-left: 25px;'>📋 {audit_str}</div>", unsafe_allow_html=True)
         else:
             st.warning("Değerli bahis bulunamadı.")
     else:

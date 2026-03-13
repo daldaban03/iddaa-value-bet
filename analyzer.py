@@ -77,6 +77,7 @@ class ValueAnalyzer:
             
             reliability = probs.get('Reliability', 'Low')
             r_flags = probs.get('Reliability_Flags', [])
+            r_audit = probs.get('Reliability_Audit', [])
             
             # Check Home Win (1)
             ev_1 = self.calculate_expected_value(probs['1'], row['Odds_1'])
@@ -87,7 +88,7 @@ class ValueAnalyzer:
                     row, '1 (Ev Sahibi)', probs['1'], row['Odds_1'], ev_1,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet, reliability, r_flags
+                    kelly_f, kelly_bet, reliability, r_flags, r_audit
                 ))
 
             # Check Draw (X)
@@ -99,7 +100,7 @@ class ValueAnalyzer:
                     row, 'X (Beraberlik)', probs['X'], row['Odds_X'], ev_x,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet, reliability, r_flags
+                    kelly_f, kelly_bet, reliability, r_flags, r_audit
                 ))
 
             # Check Away Win (2)
@@ -111,7 +112,7 @@ class ValueAnalyzer:
                     row, '2 (Deplasman)', probs['2'], row['Odds_2'], ev_2,
                     home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                     home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                    kelly_f, kelly_bet, reliability, r_flags
+                    kelly_f, kelly_bet, reliability, r_flags, r_audit
                 ))
 
         # Convert to DataFrame and sort by Expected Value (highest first)
@@ -119,7 +120,7 @@ class ValueAnalyzer:
             # Correct columns for empty result consistency
             return pd.DataFrame(columns=[
                 'Date', 'Match', 'Prediction', 'AI_Probability', 'Iddaa_Odds', 
-                'Veri_Kalitesi', 'Expected_Value', 'Edge', 'Ev_Eksik', 'Dep_Eksik', 
+                'Veri_Kalitesi', 'Veri_Detayi', 'Expected_Value', 'Edge', 'Ev_Eksik', 'Dep_Eksik', 
                 'Kelly_Pct', 'Kelly_Bahis', 'Explanation'
             ])
             
@@ -159,6 +160,7 @@ class ValueAnalyzer:
                 'ev_eksik': row['Ev_Eksik'],
                 'dep_eksik': row['Dep_Eksik'],
                 'quality': row.get('Veri_Kalitesi', '🔴 Bilinmiyor'),
+                'quality_audit': row.get('Veri_Detayi', '')
             }
             
             if len(singles) < max_singles:
@@ -223,7 +225,7 @@ class ValueAnalyzer:
     def _create_result_row(self, fixture_row, prediction_type, prob, odds, ev,
                            home_xg, away_xg, home_elo, away_elo, home_form, away_form,
                            home_mom, away_mom, inj_str, pen_str, h_inj_count, a_inj_count,
-                           kelly_f, kelly_bet, reliability, r_flags):
+                           kelly_f, kelly_bet, reliability, r_flags, r_audit):
         
         rel_icon = "🟢 Yüksek" if reliability == "High" else ("🟡 Orta" if reliability == "Medium" else "🔴 Düşük")
         
@@ -254,6 +256,7 @@ class ValueAnalyzer:
             'AI_Probability': f"{prob*100:.1f}%",
             'Iddaa_Odds': odds,
             'Veri_Kalitesi': rel_icon,
+            'Veri_Detayi': "\n".join(r_audit),
             'Expected_Value': round(ev, 3),
             'Edge': f"{ev*100:.1f}%",
             'Ev_Eksik': h_inj_count,
