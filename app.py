@@ -11,13 +11,13 @@ from utils.background_worker import BackgroundAnalyzer, get_latest_scan
 
 # 🕒 Start Background Automation
 @st.cache_resource
-def start_automation(ver="1.2-trt"):
+def start_automation(ver="1.3-trt-fix"):
     worker = BackgroundAnalyzer(interval_seconds=900)  # 15 mins
     if not worker.is_alive():
         worker.start()
     return worker
 
-worker = start_automation(ver="1.2-trt")
+worker = start_automation(ver="1.3-trt-fix")
 
 st.set_page_config(
     page_title="Iddaa Value Bet AI",
@@ -305,7 +305,7 @@ with tab2:
                     margin-bottom: 12px;
                 }
                 
-                /* Expander Styling */
+                /* Expander Styling - Removing broad p selector to fix overlapping text */
                 .stExpander {
                     background: rgba(30, 41, 59, 0.4) !important;
                     border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -314,10 +314,6 @@ with tab2:
                 }
                 .stExpander [data-testid="stExpanderToggleIcon"] {
                     fill: #facc15 !important;
-                }
-                .stExpander p {
-                    font-weight: 600 !important;
-                    color: #f8fafc !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
