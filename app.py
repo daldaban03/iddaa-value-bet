@@ -148,7 +148,8 @@ with tab2:
                 
                 # Apply Date Filtering
                 if date_filter != "Tümü":
-                    target_df['Date_DT'] = pd.to_datetime(target_df['Date'])
+                    target_df['Date_DT'] = pd.to_datetime(target_df['Date'], errors='coerce')
+                    target_df = target_df.dropna(subset=['Date_DT'])
                     # Turkey Time (UTC+3)
                     trt = timezone(timedelta(hours=3))
                     today = datetime.now(trt)
@@ -164,7 +165,7 @@ with tab2:
                 if target_df.empty:
                     st.warning(f"Seçilen kriterlere ({date_filter}) uygun maç bulunamadı.")
                     st.session_state['is_analyzing'] = False
-                    # No rerun here to allow warning to be seen
+                    st.stop() # Abort execution of the rest of the block
 
                 value_bets_df = analyzer.analyze_fixtures(
                     target_df, 

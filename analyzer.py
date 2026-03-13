@@ -115,6 +115,14 @@ class ValueAnalyzer:
                 ))
 
         # Convert to DataFrame and sort by Expected Value (highest first)
+        if not results:
+            # Correct columns for empty result consistency
+            return pd.DataFrame(columns=[
+                'Date', 'Match', 'Prediction', 'AI_Probability', 'Iddaa_Odds', 
+                'Veri_Kalitesi', 'Expected_Value', 'Edge', 'Ev_Eksik', 'Dep_Eksik', 
+                'Kelly_Pct', 'Kelly_Bahis', 'Explanation'
+            ])
+            
         results_df = pd.DataFrame(results)
         if not results_df.empty:
             results_df = results_df.sort_values(by='Expected_Value', ascending=False)
