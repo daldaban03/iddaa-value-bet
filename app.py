@@ -25,6 +25,38 @@ st.set_page_config(
     layout="wide"
 )
 
+# 🎨 Premium Global CSS
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@500;800&display=swap');
+    
+    /* Global Font System - Selective to avoid icon corruption */
+    .stApp, .stApp p, .stApp span, .stApp label, .stApp button, .stApp input {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Ensure icons keep their font/svg behavior */
+    [data-testid*="Icon"], [data-testid*="icon"], svg, .st-key-icon {
+        font-family: inherit !important;
+    }
+
+    h1, h2, h3, .match-title {
+        font-family: 'Outfit', sans-serif !important;
+    }
+
+    /* Expander Universal Styling */
+    .stExpander {
+        background: rgba(30, 41, 59, 0.4) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        margin-top: 10px !important;
+    }
+    .stExpander [data-testid="stExpanderToggleIcon"] {
+        fill: #facc15 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🎯 Iddaa Value Bet AI Analyzer")
 st.markdown("""
 Bu araç, seçili maçların **Yapay Zeka** modeli (Elo + Form + Transfermarkt Sakatlık Analizi) ile hesaplanmış kazanma ihtimallerini, 
@@ -194,25 +226,9 @@ with tab2:
         df = st.session_state['value_bets']
         if not df.empty:
             # Premium Styling CSS
-            # Premium Glassmorphism Styling
+            # Premium Component Styling (Localized)
             st.markdown("""
                 <style>
-                /* Google Fonts - Inter & Outfit */
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@500;800&display=swap');
-                
-                html, body, [class*="st-"]:not([class*="icon"]) {
-                    font-family: 'Inter', sans-serif;
-                }
-                
-                /* Ensure icons keep their font */
-                [class*="icon"] {
-                    font-family: inherit !important;
-                }
-                
-                h1, h2, h3, .match-title {
-                    font-family: 'Outfit', sans-serif;
-                }
-
                 .match-card {
                     background: rgba(30, 41, 59, 0.7);
                     backdrop-filter: blur(10px);
@@ -229,19 +245,6 @@ with tab2:
                     border-left: 8px solid #facc15; /* Gold on hover */
                     background: rgba(30, 41, 59, 0.9);
                 }
-                .match-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 20px;
-                }
-                .match-title {
-                    font-size: 22px;
-                    font-weight: 800;
-                    color: #f8fafc;
-                    line-height: 1.2;
-                    margin-right: 10px;
-                }
                 .prediction-badge {
                     background: linear-gradient(135deg, #10b981, #059669); /* Emerald */
                     color: white;
@@ -253,26 +256,13 @@ with tab2:
                     letter-spacing: 0.5px;
                     box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
                     white-space: nowrap;
-                    flex-shrink: 0; /* Badge should not shrink */
-                }
-                .stats-grid {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 20px;
-                    margin-top: 20px;
-                    padding: 15px;
-                    background: rgba(15, 23, 42, 0.6);
-                    border-radius: 12px;
-                }
-                .metric-item {
-                    display: flex;
-                    flex-direction: column;
+                    flex-shrink: 0;
                 }
                 .metric-label {
                     font-size: 11px;
                     text-transform: uppercase;
                     font-weight: 700;
-                    color: #cbd5e1; /* Brighter gray for better visibility */
+                    color: #cbd5e1;
                     letter-spacing: 1.2px;
                     margin-bottom: 6px;
                 }
@@ -290,7 +280,7 @@ with tab2:
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    gap: 15px; /* Prevent text clashing */
+                    gap: 15px;
                 }
                 .kelly-amount {
                     font-size: 26px;
@@ -302,23 +292,12 @@ with tab2:
                 .date-badge {
                     font-size: 13px;
                     font-weight: 600;
-                    color: #f1f5f9; /* Near white for high visibility */
+                    color: #f1f5f9;
                     background: rgba(255, 255, 255, 0.1);
                     padding: 4px 10px;
                     border-radius: 6px;
                     display: inline-block;
                     margin-bottom: 12px;
-                }
-                
-                /* Expander Styling - Removing broad p selector to fix overlapping text */
-                .stExpander {
-                    background: rgba(30, 41, 59, 0.4) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-                    border-radius: 12px !important;
-                    margin-top: 10px !important;
-                }
-                .stExpander [data-testid="stExpanderToggleIcon"] {
-                    fill: #facc15 !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
