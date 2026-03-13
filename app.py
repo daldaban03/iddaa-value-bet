@@ -156,13 +156,15 @@ with tab2:
                     if date_filter == "Sadece Bugün":
                         target_df = target_df[target_df['Date_DT'].dt.date == today.date()]
                     elif date_filter == "Önümüzdeki 2 Gün":
-                        tomorrow_end = (today + timedelta(days=2)).replace(hour=23, minute=59, second=59)
-                        target_df = target_df[(target_df['Date_DT'].dt.date >= today.date()) & (target_df['Date_DT'] <= tomorrow_end)]
+                        # Compare dates only to avoid timezone issues with pd.to_datetime
+                        today_date = today.date()
+                        two_days_later = today_date + timedelta(days=2)
+                        target_df = target_df[(target_df['Date_DT'].dt.date >= today_date) & (target_df['Date_DT'].dt.date <= two_days_later)]
 
                 if target_df.empty:
                     st.warning(f"Seçilen kriterlere ({date_filter}) uygun maç bulunamadı.")
                     st.session_state['is_analyzing'] = False
-                    st.rerun()
+                    # No rerun here to allow warning to be seen
 
                 value_bets_df = analyzer.analyze_fixtures(
                     target_df, 
@@ -178,9 +180,14 @@ with tab2:
             st.error(f"Hata oluştu: {e}")
             import traceback
             st.code(traceback.format_exc())
-        finally:
             st.session_state['is_analyzing'] = False
-            st.rerun()
+        finally:
+            # Only rerun if we actually found something to display
+            if 'value_bets' in st.session_state and st.session_state.get('is_analyzing'):
+                st.session_state['is_analyzing'] = False
+                st.rerun()
+            else:
+                st.session_state['is_analyzing'] = False
 
     if 'value_bets' in st.session_state:
         df = st.session_state['value_bets']
@@ -429,7 +436,10 @@ with tab2:
         else:
             st.warning("Değerli bahis bulunamadı.")
     else:
-        st.info("Analiz için bülteni çektikten sonra butona basınız.")
+        if 'bulten' not in st.session_state:
+            st.info("Analiz için bülteni çektikten sonra butona basınız.")
+        else:
+            st.info("Analiz sonuçlarını görmek için 'AI ile Analiz Et' butonuna basınız.")
 
 with tab3:
     render_performance_tab(fetcher)
