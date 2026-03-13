@@ -63,8 +63,6 @@ class HistoricalDataFetcher:
         'hellasverona': 'Verona',
         'internazionale': 'Inter',
         'manutd': 'Man United',
-        'manunited': 'Man United',
-        'mancity': 'Man City',
         'stetienne': 'St Etienne',
         'borussiamonchengladbach': 'Gladbach',
         'borussiambach': 'Gladbach',
@@ -138,8 +136,8 @@ class HistoricalDataFetcher:
         # Remove accents and normalize to NFD
         s = unicodedata.normalize('NFD', str(s)).encode('ascii', 'ignore').decode('utf-8')
         s = s.lower().strip()
-        # Remove common fluff
-        for suf in [' sk', ' jk', ' fk', ' a.s.', ' fc', ' sc', ' cf', ' afc', ' utd', ' united', ' city', ' hotspur', ' club']:
+        # Remove common fluff (Careful: DON'T remove 'city', 'united', 'utd' as they provide identity)
+        for suf in [' sk', ' jk', ' fk', ' a.s.', ' fc', ' sc', ' cf', ' afc', ' club']:
             s = s.replace(suf, '')
         # Remove punctuation and spaces
         import re
@@ -252,8 +250,8 @@ class HistoricalDataFetcher:
             return None
             
         try:
-            # Direct fetch with 5s timeout. 
-            r = self.session.get(target_url, timeout=5)
+            # Direct fetch with 20s timeout (football-data is slow)
+            r = self.session.get(target_url, timeout=20)
             if r.status_code == 200 and r.text.strip():
                 df = pd.read_csv(io.StringIO(r.text), on_bad_lines='skip')
                 if 'HomeTeam' in df.columns and 'AwayTeam' in df.columns:
@@ -267,9 +265,9 @@ class HistoricalDataFetcher:
                         self._team_league_map[norm] = (league_code, str(team))
                     return df
             else:
-                self._failed_csv_urls.add(target_url)
+                # Don't blacklist permanently on first fail, could be transient
+                pass
         except Exception as e:
-            self._failed_csv_urls.add(target_url)
             print(f"  CSV fetch failed ({league_code}/{season}): {e}")
             
         return None
@@ -284,7 +282,9 @@ class HistoricalDataFetcher:
             if n in self._team_league_map:
                 l_code, canon = self._team_league_map[n]
                 cache_key = f"{l_code}_{self._current_season}"
-                df = self._league_data.get(cache_key) or self._fetch_league_csv(l_code)
+                df = self._league_data.get(cache_key)
+                if df is None:
+                    df = self._fetch_league_csv(l_code)
                 return l_code, canon, df, m_type
 
         # 2. Iterate and fetch leagues
