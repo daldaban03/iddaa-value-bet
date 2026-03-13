@@ -200,8 +200,13 @@ with tab2:
                 /* Google Fonts - Inter & Outfit */
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@500;800&display=swap');
                 
-                html, body, [class*="st-"] {
+                html, body, [class*="st-"]:not([class*="icon"]) {
                     font-family: 'Inter', sans-serif;
+                }
+                
+                /* Ensure icons keep their font */
+                [class*="icon"] {
+                    font-family: inherit !important;
                 }
                 
                 h1, h2, h3, .match-title {
