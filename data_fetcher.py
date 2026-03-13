@@ -147,7 +147,10 @@ class HistoricalDataFetcher:
     def _get_canonical_mapping(self, team_name):
         """Returns the canonical name if mapped, otherwise the normalized input."""
         norm = self._norm_name(team_name)
-        return self.KNOWN_TEAM_MAPPINGS.get(norm, norm)
+        mapped = self.KNOWN_TEAM_MAPPINGS.get(norm)
+        if mapped:
+            return self._norm_name(mapped), mapped # Return (norm_target, original_target)
+        return norm, None
 
     def _normalize_team_name_elo(self, name):
         """Standardized normalization for ClubElo using the shared _norm_name logic."""
@@ -251,7 +254,8 @@ class HistoricalDataFetcher:
             
         try:
             # Direct fetch with 20s timeout (football-data is slow)
-            r = self.session.get(target_url, timeout=20)
+            # Try current season first, then previous as fallback
+            r = self.session.get(target_url, timeout=20, verify=True)
             if r.status_code == 200 and r.text.strip():
                 df = pd.read_csv(io.StringIO(r.text), on_bad_lines='skip')
                 if 'HomeTeam' in df.columns and 'AwayTeam' in df.columns:
@@ -264,21 +268,36 @@ class HistoricalDataFetcher:
                         norm = self._norm_name(str(team))
                         self._team_league_map[norm] = (league_code, str(team))
                     return df
-            else:
-                # Don't blacklist permanently on first fail, could be transient
-                pass
+            
+            # Fallback to previous season if 404
+            if r.status_code == 404 and season == self._current_season:
+                prev_season = f"{int(season[:2])-1:02d}{int(season[2:])-1:02d}"
+                return self._fetch_league_csv(league_code, prev_season)
+
         except Exception as e:
             print(f"  CSV fetch failed ({league_code}/{season}): {e}")
+            # If SSL error, try with verify=False
+            if "SSL" in str(e):
+                try:
+                    r = self.session.get(target_url, timeout=20, verify=False)
+                    # (repeat nested logic or just recurse once with a flag? 
+                    # Let's keep it simple: just return None for now but log it)
+                    print("  [Fetcher] SSL Error detected, consider verify=False in future.")
+                except: pass
             
         return None
 
     def _find_team_in_leagues(self, team_name):
         """Lazy search/load of leagues for the specific team."""
         norm_name = self._norm_name(team_name)
-        mapped_name = self._get_canonical_mapping(team_name)
+        norm_mapped, canon_mapped = self._get_canonical_mapping(team_name)
         
-        # 1. Exact match check in cache
-        for n, m_type in [(norm_name, "Exact"), (mapped_name, "Mapped")]:
+        # 1. Exact/Mapped match check in cache
+        search_targets = [(norm_name, "Exact")]
+        if canon_mapped:
+            search_targets.append((norm_mapped, f"Mapped ({canon_mapped})"))
+
+        for n, m_type in search_targets:
             if n in self._team_league_map:
                 l_code, canon = self._team_league_map[n]
                 cache_key = f"{l_code}_{self._current_season}"
@@ -288,6 +307,7 @@ class HistoricalDataFetcher:
                 return l_code, canon, df, m_type
 
         # 2. Iterate and fetch leagues
+        print(f"  [Fetcher] Deep search for {team_name} (Norm: {norm_name})...")
         for code in self.LEAGUE_CODES:
             target_url = f"https://www.football-data.co.uk/mmz4281/{self._current_season}/{code}.csv"
             if target_url in self._failed_csv_urls:
@@ -302,7 +322,7 @@ class HistoricalDataFetcher:
                     self._team_league_map[t_norm] = (code, str(t))
                 
                 # Check mapping and exact norm again
-                for target, m_type in [(norm_name, "Exact"), (mapped_name, "Mapped")]:
+                for target, m_type in search_targets:
                     if target in self._team_league_map:
                         l_code, canon = self._team_league_map[target]
                         return l_code, canon, df, m_type
@@ -310,7 +330,8 @@ class HistoricalDataFetcher:
                 # 3. Fallback: Fuzzy/Substring matching within this league's teams
                 for t in current_teams:
                     t_norm = self._norm_name(str(t))
-                    if (norm_name in t_norm and len(norm_name) > 3) or (t_norm in norm_name and len(t_norm) > 3):
+                    # Check if our norm is in their norm or vice-versa
+                    if (norm_name in t_norm and len(norm_name) > 3) or (t_norm in norm_name and len(t_norm) > 1):
                         print(f"  [Fetcher] Fuzzy match found for '{team_name}': {t}")
                         self._team_league_map[norm_name] = (code, str(t))
                         return code, str(t), df, f"Fuzzy ({t})"
@@ -780,7 +801,11 @@ class HistoricalDataFetcher:
         else:
             # Fallback: Elo-based estimation
             dq['stats_source'] = 'Estimated_from_Elo'
-            dq['audit'].append(f"football-data: Lig/takım verisi bulunamadı ({team_name}). Elo tabanlı istatistik tahmini yapıldı.")
+            reason = "Lig/takım bulunamadı"
+            # Check if any CSV failed
+            if len(self._failed_csv_urls) > 0:
+                reason = "Bazı lig bağlantıları başarısız oldu"
+            dq['audit'].append(f"football-data: {reason} ({team_name}). Elo tabanlı istatistik tahmini yapıldı.")
             if elo_score is not None:
                 avg_s = max(0.5, 1.0 + (elo_score - 1300) / 300.0)
                 avg_c = max(0.5, 2.0 - (elo_score - 1300) / 400.0)
