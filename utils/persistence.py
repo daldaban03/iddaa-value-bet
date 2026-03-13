@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 PREDICTIONS_DIR = "data/predictions"
@@ -15,7 +15,9 @@ def save_predictions(df, bankroll, risk_fraction, min_edge):
     if not os.path.exists(PREDICTIONS_DIR):
         os.makedirs(PREDICTIONS_DIR, exist_ok=True)
         
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Turkey Time (UTC+3)
+    trt = timezone(timedelta(hours=3))
+    timestamp = datetime.now(trt).strftime("%Y%m%d_%H%M%S")
     filename = f"{timestamp}_analysis.json"
     filepath = os.path.join(PREDICTIONS_DIR, filename)
     

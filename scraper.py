@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import uuid
 import json
 from bs4 import BeautifulSoup
@@ -24,7 +24,9 @@ class IddaaScraper:
         """
 
         match_data = []
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        # Turkey Time (UTC+3)
+        trt = timezone(timedelta(hours=3))
+        today_str = datetime.now(trt).strftime("%Y-%m-%d")
         
         try:
             response = requests.get(self.api_url, headers=self.headers, timeout=10)

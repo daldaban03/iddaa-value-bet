@@ -4,7 +4,7 @@ import io
 import sys
 import unicodedata
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -59,8 +59,9 @@ class HistoricalDataFetcher:
         self._tm_injury_links = {}
         self._tm_links_fetched = False
 
-        # Current season
-        now = datetime.now()
+        # Current season (Turkey Time)
+        trt = timezone(timedelta(hours=3))
+        now = datetime.now(trt)
         if now.month >= 7:
             self._current_season = f"{str(now.year)[2:]}{str(now.year + 1)[2:]}"
         else:

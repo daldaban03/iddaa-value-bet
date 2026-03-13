@@ -2,7 +2,7 @@ import threading
 import time
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 from utils.persistence import save_predictions
 
@@ -73,7 +73,9 @@ class BackgroundAnalyzer(threading.Thread):
         if not self.analyzer:
             return
             
-        print(f"[BackgroundWorker] Starting analysis cycle at {datetime.now()}...")
+        # Turkey Time (UTC+3)
+        trt = timezone(timedelta(hours=3))
+        print(f"[BackgroundWorker] Starting analysis cycle at {datetime.now(trt)}...")
         
         # 1. Fetch Bulletin
         bulten_df = self.scraper.fetch_daily_bulten()
@@ -90,7 +92,9 @@ class BackgroundAnalyzer(threading.Thread):
         )
         
         # 3. Save as latest scan
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Turkey Time (UTC+3)
+        trt = timezone(timedelta(hours=3))
+        timestamp = datetime.now(trt).strftime("%Y-%m-%d %H:%M:%S")
         data = {
             "last_scan": timestamp,
             "bankroll": self.bankroll,

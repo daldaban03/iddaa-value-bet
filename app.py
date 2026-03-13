@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from scraper import IddaaScraper
 from data_fetcher import HistoricalDataFetcher
 from predictor import Predictor
@@ -149,7 +149,9 @@ with tab2:
                 # Apply Date Filtering
                 if date_filter != "Tümü":
                     target_df['Date_DT'] = pd.to_datetime(target_df['Date'])
-                    today = datetime.now()
+                    # Turkey Time (UTC+3)
+                    trt = timezone(timedelta(hours=3))
+                    today = datetime.now(trt)
                     
                     if date_filter == "Sadece Bugün":
                         target_df = target_df[target_df['Date_DT'].dt.date == today.date()]
