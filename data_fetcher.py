@@ -35,6 +35,8 @@ class HistoricalDataFetcher:
     # 🔗 Robust Mapping Dictionary (Iddaa/Normalized -> Source Canonical)
     # This helps when normalization alone isn't enough.
     KNOWN_TEAM_MAPPINGS = {
+        'rclens': 'Lens',
+        'lens': 'Lens',
         'newcastleunited': 'Newcastle',
         'manchesterunited': 'Man United',
         'manchestercity': 'Man City',
@@ -45,6 +47,19 @@ class HistoricalDataFetcher:
         'atleticomadrid': 'Ath Madrid',
         'psg': 'PSG',
         'parissaintgermain': 'PSG',
+        'lyon': 'Lyon',
+        'olympiquele': 'Lyon',
+        'marseille': 'Marseille',
+        'olympiquema': 'Marseille',
+        'monaco': 'Monaco',
+        'asmonaco': 'Monaco',
+        'lille': 'Lille',
+        'rennes': 'Rennes',
+        'stadebrestois': 'Brest',
+        'brest': 'Brest',
+        'nantes': 'Nantes',
+        'nice': 'Nice',
+        'montpellier': 'Montpellier',
         'tottenhamhotspur': 'Tottenham',
         'leicestercity': 'Leicester',
         'wolverhamptonwanderers': 'Wolves',
@@ -52,7 +67,7 @@ class HistoricalDataFetcher:
         'nottinghamforest': 'Nott\'m Forest',
         'westhamunited': 'West Ham',
         'sheffieldunited': 'Sheffield United',
-        'athleticbilbao': 'Ath Bilbao',
+        'athleticbilbao': 'Ath Bilal',
         'realsociedad': 'Real Sociedad',
         'realbetis': 'Betis',
         'celtavigo': 'Celta',
@@ -249,12 +264,12 @@ class HistoricalDataFetcher:
             return self._league_data[cache_key]
 
         target_url = f"https://www.football-data.co.uk/mmz4281/{season}/{league_code}.csv"
-        if target_url in self._failed_csv_urls:
+        # Only skip if we already tried multiple times
+        if target_url in self._failed_csv_urls and list(self._failed_csv_urls).count(target_url) > 2:
             return None
             
         try:
-            # Direct fetch with 20s timeout (football-data is slow)
-            # Try current season first, then previous as fallback
+            # Direct fetch with 20s timeout and SSL verification
             r = self.session.get(target_url, timeout=20, verify=True)
             if r.status_code == 200 and r.text.strip():
                 df = pd.read_csv(io.StringIO(r.text), on_bad_lines='skip')
@@ -273,16 +288,25 @@ class HistoricalDataFetcher:
             if r.status_code == 404 and season == self._current_season:
                 prev_season = f"{int(season[:2])-1:02d}{int(season[2:])-1:02d}"
                 return self._fetch_league_csv(league_code, prev_season)
+            
+            if r.status_code != 200:
+                self._failed_csv_urls.add(target_url)
 
         except Exception as e:
             print(f"  CSV fetch failed ({league_code}/{season}): {e}")
-            # If SSL error, try with verify=False
-            if "SSL" in str(e):
+            self._failed_csv_urls.add(target_url)
+            # If SSL error, try with verify=False specifically for this call
+            if "SSL" in str(e) or "certificate" in str(e).lower():
                 try:
                     r = self.session.get(target_url, timeout=20, verify=False)
-                    # (repeat nested logic or just recurse once with a flag? 
-                    # Let's keep it simple: just return None for now but log it)
-                    print("  [Fetcher] SSL Error detected, consider verify=False in future.")
+                    if r.status_code == 200 and r.text.strip():
+                        df = pd.read_csv(io.StringIO(r.text), on_bad_lines='skip')
+                        if 'HomeTeam' in df.columns and 'AwayTeam' in df.columns:
+                            self._league_data[cache_key] = df
+                            for team in set(df['HomeTeam'].dropna()) | set(df['AwayTeam'].dropna()):
+                                norm = self._norm_name(str(team))
+                                self._team_league_map[norm] = (league_code, str(team))
+                            return df
                 except: pass
             
         return None
@@ -802,9 +826,11 @@ class HistoricalDataFetcher:
             # Fallback: Elo-based estimation
             dq['stats_source'] = 'Estimated_from_Elo'
             reason = "Lig/takım bulunamadı"
-            # Check if any CSV failed
-            if len(self._failed_csv_urls) > 0:
-                reason = "Bazı lig bağlantıları başarısız oldu"
+            if self._failed_csv_urls:
+                failed_count = len(self._failed_csv_urls)
+                reason = f"Bağlantı sorunu ({failed_count} lig başarısız)"
+                # Look for SSL errors in stdout if we were logging them, 
+                # but here we can just mention general connection.
             dq['audit'].append(f"football-data: {reason} ({team_name}). Elo tabanlı istatistik tahmini yapıldı.")
             if elo_score is not None:
                 avg_s = max(0.5, 1.0 + (elo_score - 1300) / 300.0)
