@@ -62,6 +62,34 @@ class HistoricalDataFetcher:
         'rayovallecano': 'Rayo Vallecano',
         'hellasverona': 'Verona',
         'internazionale': 'Inter',
+        'manutd': 'Man United',
+        'manunited': 'Man United',
+        'mancity': 'Man City',
+        'stetienne': 'St Etienne',
+        'borussiamonchengladbach': 'Gladbach',
+        'borussiambach': 'Gladbach',
+        'monchengladbach': 'Gladbach',
+        'eintrachtfrankfurt': 'Eintracht Frankfurt',
+        'rbleipzig': 'RB Leipzig',
+        'leverkusen': 'Leverkusen',
+        'bayerleverkusen': 'Leverkusen',
+        'mainz05': 'Mainz',
+        'herthabsc': 'Hertha',
+        'unionberlin': 'Union Berlin',
+        'sportingcp': 'Sporting Lisbon',
+        'sportinglisbon': 'Sporting Lisbon',
+        'slbenfica': 'Benfica',
+        'pdevindhoven': 'PSV',
+        'psveindhoven': 'PSV',
+        'feyenoordrotterdam': 'Feyenoord',
+        'panathinaikos': 'Panathinaikos',
+        'olympiakos': 'Olympiakos',
+        'rangers': 'Rangers',
+        'celtic': 'Celtic',
+        'galatasaray': 'Galatasaray',
+        'fenerbahce': 'Fenerbahce',
+        'besiktas': 'Besiktas',
+        'trabzonspor': 'Trabzonspor',
     }
 
     def __init__(self):
@@ -124,65 +152,38 @@ class HistoricalDataFetcher:
         return self.KNOWN_TEAM_MAPPINGS.get(norm, norm)
 
     def _normalize_team_name_elo(self, name):
-        name = str(name).strip()
-        # Remove common prefixes/suffixes
-        prefixes = ['RC ', 'FC ', 'AS ', 'AC ', 'US ', 'SSC ', 'AFC ', 'FK ', 'SC ', 'UD ', 'CD ', 'SV ', 'spvg ']
-        for pre in prefixes:
-            if name.lower().startswith(pre.lower()):
-                name = name[len(pre):]
-        
-        suffixes = [' FC', ' FK', ' A.S.', ' SC', ' CF', ' SD', ' Utd', ' United']
-        for suf in suffixes:
-            if name.lower().endswith(suf.lower()):
-                name = name[:-len(suf)]
-                
-        # Known ClubElo mappings (Manual overrides for common misalignments)
-        mappings = {
+        """Standardized normalization for ClubElo using the shared _norm_name logic."""
+        # Manual overrides for ClubElo specifically
+        elo_overrides = {
+            'newcastle': 'Newcastle',
+            'manchester': 'ManUnited',
+            'manunited': 'ManUnited',
+            'mancity': 'ManCity',
+            'madrid': 'RealMadrid',
+            'realmadrid': 'RealMadrid',
+            'atleticomadrid': 'Atletico',
             'bilbao': 'Athletic',
-            'athletic club': 'Athletic',
-            'paris saint germain': 'PSG',
-            'paris saint-germain': 'PSG',
-            'paris st germain': 'PSG',
-            'paris sg': 'PSG',
+            'athletic': 'Athletic',
             'psg': 'PSG',
-            'bayern munich': 'Bayern',
-            'real betis': 'Betis',
-            'real sociedad': 'Sociedad',
-            'as roma': 'Roma',
-            'roma': 'Roma',
+            'parissaintgermain': 'PSG',
+            'bayern': 'Bayern',
+            'munih': 'Bayern',
+            'acmilan': 'ACMilan',
+            'internazionale': 'Inter',
             'inter': 'Internazionale',
-            'milan': 'AC Milan',
-            'st etienne': 'St-Etienne',
-            "m'gladbach": "Gladbach",
-            'monchengladbach': 'Gladbach',
-            'manchester city': 'Man City',
-            'manchester united': 'Man United',
-            'tottenham': 'Tottenham',
-            'leicester': 'Leicester',
-            'wolves': 'Wolverhampton',
-            'alaves': 'Alaves',
-            'valladolid': 'Valladolid',
-            'celta': 'Celta',
-            'galan': 'Galatasaray',
+            'roma': 'Roma',
+            'stetienne': 'St-Etienne',
+            'gladbach': 'Gladbach',
             'fener': 'Fenerbahce',
             'besik': 'Besiktas',
-            'trabzon': 'Trabzonspor',
-            'lech poznan': 'Lech',
-            'az alkmaar': 'AZ',
-            'nottingham forest': 'Forest',
-            'krc genk': 'Genk',
-            'crystal palace': 'Palace',
-            'shakhtar donetsk': 'Shakhtar',
-            'sparta prag': 'SpartaPrague',
+            'cimbon': 'Galatasaray',
         }
         
-        # Aggressive cleaning for Iddaa names (which often have leading/trailing space or weird dashes)
-        lookup_name = name.lower().strip().replace('\xa0', ' ').replace('–', '-')
-        mapped = mappings.get(lookup_name, name)
-        normalized = mapped.replace(" ", "")
-        # Remove any remaining Turkish characters or special punctuation
-        normalized = unicodedata.normalize('NFD', normalized).encode('ascii', 'ignore').decode('utf-8')
-        return normalized
+        norm = self._norm_name(name)
+        if norm in elo_overrides:
+            return elo_overrides[norm]
+        
+        return norm.capitalize()
 
     # ═══════════════════════════════════════════════
     # ClubElo API (FREE)
@@ -279,13 +280,12 @@ class HistoricalDataFetcher:
         mapped_name = self._get_canonical_mapping(team_name)
         
         # 1. Exact match check in cache
-        for n in [norm_name, mapped_name]:
+        for n, m_type in [(norm_name, "Exact"), (mapped_name, "Mapped")]:
             if n in self._team_league_map:
                 l_code, canon = self._team_league_map[n]
                 cache_key = f"{l_code}_{self._current_season}"
-                if cache_key in self._league_data:
-                    return l_code, canon, self._league_data[cache_key]
-                return l_code, canon, self._fetch_league_csv(l_code)
+                df = self._league_data.get(cache_key) or self._fetch_league_csv(l_code)
+                return l_code, canon, df, m_type
 
         # 2. Iterate and fetch leagues
         for code in self.LEAGUE_CODES:
@@ -302,22 +302,20 @@ class HistoricalDataFetcher:
                     self._team_league_map[t_norm] = (code, str(t))
                 
                 # Check mapping and exact norm again
-                for target in [norm_name, mapped_name]:
+                for target, m_type in [(norm_name, "Exact"), (mapped_name, "Mapped")]:
                     if target in self._team_league_map:
                         l_code, canon = self._team_league_map[target]
-                        return l_code, canon, df
+                        return l_code, canon, df, m_type
                 
                 # 3. Fallback: Fuzzy/Substring matching within this league's teams
-                # Only if not found exactly
                 for t in current_teams:
                     t_norm = self._norm_name(str(t))
-                    # Check if our norm is in their norm or vice versa
                     if (norm_name in t_norm and len(norm_name) > 3) or (t_norm in norm_name and len(t_norm) > 3):
                         print(f"  [Fetcher] Fuzzy match found for '{team_name}': {t}")
                         self._team_league_map[norm_name] = (code, str(t))
-                        return code, str(t), df
+                        return code, str(t), df, f"Fuzzy ({t})"
         
-        return None, None, None
+        return None, None, None, None
 
     def _get_league_averages(self, league_code):
         if league_code in self._league_averages:
@@ -773,12 +771,12 @@ class HistoricalDataFetcher:
             dq['audit'].append(f"ClubElo: {team_name} için güncel Elo verisi başarıyla çekildi.")
 
         # 2. football-data.co.uk stats
-        code, canonical, league_df = self._find_team_in_leagues(team_name)
+        code, canonical, league_df, match_type = self._find_team_in_leagues(team_name)
 
         if code and canonical and league_df is not None:
             csv_stats = self._compute_team_csv_stats(canonical, league_df)
             league_avg = self._get_league_averages(code)
-            dq['audit'].append(f"football-data: {self.LEAGUE_CODES.get(code, code)} verisi ve takım istatistikleri yüklendi.")
+            dq['audit'].append(f"football-data: {self.LEAGUE_CODES.get(code, code)} verisi yüklendi ({canonical}, Match: {match_type}).")
         else:
             # Fallback: Elo-based estimation
             dq['stats_source'] = 'Estimated_from_Elo'
