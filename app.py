@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime, timedelta
 from scraper import IddaaScraper
 from data_fetcher import HistoricalDataFetcher
 from predictor import Predictor
@@ -116,6 +117,14 @@ with tab2:
     )
     st.caption("Not: Bültendeki oranların şirket kâr marjını yenmesi için en az %15 seçilmesi daha risksizdir.")
 
+    # 📅 Date Filter
+    date_filter = st.selectbox(
+        "Analiz Edilecek Maç Zamanı",
+        ["Tümü", "Sadece Bugün", "Önümüzdeki 2 Gün"],
+        index=0,
+        disabled=st.session_state['is_analyzing']
+    )
+
     # 🕒 Automation Status
     latest_scan = get_latest_scan()
     if latest_scan:
@@ -135,8 +144,26 @@ with tab2:
     if st.session_state.get('is_analyzing', False) and 'bulten' in st.session_state:
         try:
             with st.spinner("Maç istatistikleri ve sakatlıklar inceleniyor..."):
+                target_df = st.session_state['bulten'].copy()
+                
+                # Apply Date Filtering
+                if date_filter != "Tümü":
+                    target_df['Date_DT'] = pd.to_datetime(target_df['Date'])
+                    today = datetime.now()
+                    
+                    if date_filter == "Sadece Bugün":
+                        target_df = target_df[target_df['Date_DT'].dt.date == today.date()]
+                    elif date_filter == "Önümüzdeki 2 Gün":
+                        tomorrow_end = (today + timedelta(days=2)).replace(hour=23, minute=59, second=59)
+                        target_df = target_df[(target_df['Date_DT'].dt.date >= today.date()) & (target_df['Date_DT'] <= tomorrow_end)]
+
+                if target_df.empty:
+                    st.warning(f"Seçilen kriterlere ({date_filter}) uygun maç bulunamadı.")
+                    st.session_state['is_analyzing'] = False
+                    st.rerun()
+
                 value_bets_df = analyzer.analyze_fixtures(
-                    st.session_state['bulten'], 
+                    target_df, 
                     min_edge=min_edge_pct/100.0,
                     bankroll=BANKROLL,
                     kelly_fraction=risk_fraction

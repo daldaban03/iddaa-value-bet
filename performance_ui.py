@@ -9,31 +9,58 @@ PREDICTIONS_DIR = "data/predictions"
 
 def verify_results(predictions, fetcher):
     """
-    Very basic result verification using HistoricalDataFetcher.
-    Matches team names and checks results for the given date.
+    Result verification using HistoricalDataFetcher.
     """
-    results = []
+    verified_results = []
     correct_count = 0
     total_verified = 0
     
     for pred in predictions:
         match_name = pred['Match']
         home, away = match_name.split(' vs ')
-        # Mock logic or actual fetcher lookup would go here
-        # For v2.0, we show 'Pending' if not found in recent bulten
-        status = "Bilinmiyor"
-        is_correct = None
         
-        # Simple simulation for demo if not using real API
-        # In production, this would call fetcher.get_match_result(home, away)
-        results.append({
+        # Search for teams in league data
+        l_code, h_canon, _ = fetcher._find_team_in_leagues(home)
+        _, a_canon, df = fetcher._find_team_in_leagues(away)
+        
+        status = "Bekleniyor"
+        is_won = None
+        
+        if h_canon and a_canon and df is not None:
+            # Look for this specific fixture in history
+            mask = (df['HomeTeam'] == h_canon) & (df['AwayTeam'] == a_canon)
+            match_row = df[mask]
+            
+            if not match_row.empty:
+                fthg = match_row.iloc[0].get('FTHG')
+                ftag = match_row.iloc[0].get('FTAG')
+                ftr = match_row.iloc[0].get('FTR')
+                
+                if pd.notna(ftr):
+                    total_verified += 1
+                    status = f"{int(fthg)}-{int(ftag)} ({ftr})"
+                    
+                    # Check if our prediction won
+                    # Prediction format: "1 (Ev Sahibi)", "X (Beraberlik)", "2 (Deplasman)"
+                    pred_type = pred['Prediction'].split(' ')[0]
+                    if (pred_type == '1' and ftr == 'H') or \
+                       (pred_type == 'X' and ftr == 'D') or \
+                       (pred_type == '2' and ftr == 'A'):
+                        is_won = True
+                        correct_count += 1
+                    else:
+                        is_won = False
+
+        status_icon = "✅ Kazandı" if is_won is True else ("❌ Kaybetti" if is_won is False else "⏳ Beklemede")
+        
+        verified_results.append({
             "Match": match_name,
             "Prediction": pred['Prediction'],
-            "Result": "Bekleniyor",
-            "Status": "⏳ Beklemede"
+            "Result": status,
+            "Status": status_icon
         })
     
-    return results, correct_count, total_verified
+    return verified_results, correct_count, total_verified
 
 def render_performance_tab(fetcher):
     st.header("📈 Performans Analizi")
@@ -50,36 +77,38 @@ def render_performance_tab(fetcher):
             
     all_data.sort(key=lambda x: x['metadata']['timestamp'], reverse=True)
     
-    # KPIs
-    st.subheader("📊 Sistem Başarısı")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Analiz Sayısı", len(all_data))
-    col2.metric("Toplam Tahmin", sum(len(d['predictions']) for d in all_data))
-    col3.metric("Başarı Oranı", "%--")
-    col4.metric("Net ROI", "%--")
-    
-    st.markdown("---")
-    
+    # Session selection
     selected_session_ts = st.selectbox(
         "Geçmiş Analiz Seçin:",
         options=[d['metadata']['timestamp'] for d in all_data],
+        key="session_selector",
         format_func=lambda x: datetime.strptime(x, "%Y%m%d_%H%M%S").strftime("%d %b %Y, %H:%M")
     )
     
     selected_data = next(d for d in all_data if d['metadata']['timestamp'] == selected_session_ts)
-    df_session = pd.DataFrame(selected_data['predictions'])
+    predictions = selected_data['predictions']
     
     st.subheader(f"🔍 Detaylar: {selected_session_ts}")
     
-    # Action button for live verification
+    # Verification
     if st.button("🔄 Sonuçları Kontrol Et", use_container_width=True):
+        st.session_state[f'verified_{selected_session_ts}'] = True
+
+    if st.session_state.get(f'verified_{selected_session_ts}', False):
         with st.spinner("Sonuçlar doğrulanıyor..."):
-            # This is a placeholder for the actual matching logic
-            # which would involve fetcher.scrape_results()
-            st.warning("Canlı skor doğrulama özelliği için bültenin sonuçlanması bekleniyor.")
+            verified_list, correct, total = verify_results(predictions, fetcher)
             
-    # Display table with icons
-    display_df = df_session[['Match', 'Prediction', 'AI_Probability', 'Iddaa_Odds', 'Kelly_Bahis']].copy()
-    display_df['Durum'] = "⏳ Beklemede"
-    st.table(display_df)
+            # KPIs for the session
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Doğrulanan Maç", total)
+            c2.metric("Doğru Tahmin", correct)
+            if total > 0:
+                c3.metric("Başarı Oranı", f"%{100*correct/total:.1f}")
+            
+            st.table(pd.DataFrame(verified_list))
+    else:
+        # Display table without verification
+        display_df = pd.DataFrame(predictions)[['Match', 'Prediction', 'AI_Probability', 'Iddaa_Odds', 'Kelly_Bahis']].copy()
+        display_df['Durum'] = "⏳ Beklemede"
+        st.table(display_df)
 
