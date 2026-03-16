@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime, timezone, timedelta
 import pandas as pd
-from utils.persistence import save_predictions
+from utils.persistence import save_predictions, update_prediction_results
 
 # We'll use these for the background analysis
 from scraper import IddaaScraper
@@ -110,6 +110,15 @@ class BackgroundAnalyzer(threading.Thread):
         # Also save to archived predictions
         save_predictions(value_bets_df, self.bankroll, self.risk_fraction, self.min_edge * 100)
         
+        # 4. Update past results (Retrospective)
+        try:
+            print("[BackgroundWorker] Updating past prediction results...")
+            updated = update_prediction_results(self.fetcher)
+            if updated > 0:
+                print(f"[BackgroundWorker] Updated {updated} archive files with new results.")
+        except Exception as e:
+            print(f"[BackgroundWorker] Result update error: {e}")
+            
         print(f"[BackgroundWorker] Cycle complete. Found {len(value_bets_df)} value bets.")
 
     def stop(self):

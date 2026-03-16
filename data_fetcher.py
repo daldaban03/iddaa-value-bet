@@ -255,17 +255,17 @@ class HistoricalDataFetcher:
     # football-data.co.uk CSV (FREE)
     # ═══════════════════════════════════════════════
 
-    def _fetch_league_csv(self, league_code, season=None):
+    def _fetch_league_csv(self, league_code, season=None, force_refresh=False):
         if season is None:
             season = self._current_season
 
         cache_key = f"{league_code}_{season}"
-        if cache_key in self._league_data:
+        if not force_refresh and cache_key in self._league_data:
             return self._league_data[cache_key]
 
         target_url = f"https://www.football-data.co.uk/mmz4281/{season}/{league_code}.csv"
-        # Only skip if we already tried multiple times
-        if target_url in self._failed_csv_urls and list(self._failed_csv_urls).count(target_url) > 2:
+        # Only skip if we already tried multiple times (unless forced)
+        if not force_refresh and target_url in self._failed_csv_urls and list(self._failed_csv_urls).count(target_url) > 2:
             return None
             
         try:
