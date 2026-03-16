@@ -39,6 +39,10 @@ def render_performance_tab(fetcher):
     if all_predictions:
         df_all = pd.DataFrame(all_predictions)
         
+        # Defensive: If no column 'Status' exists (old data), create it
+        if 'Status' not in df_all.columns:
+            df_all['Status'] = "⏳ Beklemede"
+            
         # Filter for verified ones
         verified_df = df_all[df_all['Status'].isin(["✅ Kazandı", "❌ Kaybetti"])].copy()
         
